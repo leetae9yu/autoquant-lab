@@ -29,6 +29,48 @@ This repository currently focuses on two tracks:
 | Prototype modeling | `scripts/train_yfinance_macro_lgbm_baseline.py` |
 | Safety check | `scripts/scan_secrets.py` |
 
+## Current implementation and study roadmap
+
+The study lead's target is to summarize the DDQM-style fundamental data requirements, how to collect them from WRDS, and how to organize the research database. This repo already covers the scaffold and prototype path, while the final WRDS loaders and factor database still need to be implemented.
+
+### Implemented so far
+
+| Area | Status | Technical detail |
+|---|---|---|
+| Credential-safe setup | Implemented | `.env.example` and `src/autoquant_lab/config.py` keep FRED and WRDS credentials outside committed code. |
+| Macro features | Implemented | `scripts/build_macro_features.py` builds FRED/ALFRED/yfinance macro-market features; validation and diagnostics scripts check workbook quality. |
+| WRDS readiness docs | Implemented | CRSP, Compustat, IBES, CCM, and manual export requirements are documented under `docs/`. |
+| WRDS access probe | Implemented | `scripts/probe_wrds.py` checks whether WRDS schemas and representative tables are accessible. |
+| Prototype equity path | Implemented | yfinance S&P 500 labels, macro join, validation, and LightGBM smoke-test scripts are available for pipeline testing only. |
+| Research-grade factor path | Not yet implemented | CRSP/Compustat/IBES loaders, point-in-time joins, factor scores, and factor long-short labels still need to be built after WRDS access is available. |
+
+### What needs to be built next
+
+| Priority | Deliverable | Why it matters |
+|---|---|---|
+| 1 | WRDS extraction scripts for `crsp.msf`/`crsp.dsf`, `comp.funda`, `comp.fundq`, `comp.ccmxpf_lnkhist`, IBES Summary History, and `wrdsapps.ibcrsphist` | Moves the project from prototype data to research-grade source data. |
+| 2 | Database/staging schema for WRDS data | Keeps CRSP `PERMNO`, Compustat `GVKEY`, CCM links, IBES links, macro features, factor scores, and labels separated but joinable. |
+| 3 | Point-in-time fundamental pipeline | Prevents lookahead bias by using `rdq` or conservative release lags instead of raw `datadate`. |
+| 4 | Factor score builders | Converts price, volume, fundamentals, and analyst data into DDQM-style cross-sectional factor signals. |
+| 5 | Factor long-short return labels | Replaces the current stock-level yfinance label prototype with DDQM-style factor-level targets. |
+| 6 | Rolling LightGBM research loop | Trains macro-to-factor-return models with baselines, feature importance, and out-of-sample evaluation. |
+
+### Proposed WRDS database structure
+
+| Table | Main keys | Purpose |
+|---|---|---|
+| `security_master` | `permno`, `permco`, `gvkey` | Stable security/company mapping with historical links. |
+| `sp500_membership` | `permno`, `start_date`, `end_date` | Point-in-time S&P 500 universe membership. |
+| `crsp_monthly_returns` | `permno`, `date` | Returns, delisting returns, prices, volume, shares, and market cap. |
+| `compustat_fundamentals` | `gvkey`, `permno`, `available_date` | PIT annual/quarterly fundamentals for value, profitability, investment, leverage, and cash-flow factors. |
+| `ibes_estimates` | `permno`, `estimate_date`, `fiscal_period` | Consensus, dispersion, coverage, and revision features. |
+| `macro_features` | `date` | FRED/ALFRED macro and market-state features. |
+| `factor_scores` | `permno`, `date`, `factor_name` | Cross-sectional factor values before portfolio construction. |
+| `factor_long_short_returns` | `date`, `factor_name` | DDQM-style long-short factor return labels. |
+| `model_dataset` | `date`, `factor_name` | Final LightGBM-ready macro features and target factor returns. |
+
+Study takeaway: the technical implementation should not join by ticker. The final path should use CRSP `PERMNO`, Compustat `GVKEY`, CCM link history, IBES-CRSP link history, and explicit availability dates to keep the S&P 500 panel point-in-time safe.
+
 ## Important caveats
 
 - WRDS/CRSP/Compustat/IBES should be treated as the final research data path.
@@ -226,6 +268,48 @@ Do not commit:
 - yfinance는 현재 S&P 500 구성종목 기반이라 생존편향 문제가 있습니다.
 - 그래서 prototype 결과를 최종 성과나 논문용 결과처럼 해석하면 안 됩니다.
 - API 키는 `.env`에만 두고 커밋하지 않습니다.
+
+## 현재 구현 상태와 스터디 로드맵
+
+스터디장이 말한 목표는 DDQM 계열 모델에 필요한 펀더멘털 데이터 종류, WRDS 수집 방법, 그리고 연구용 데이터베이스 구조를 정리하는 것입니다. 이 레포는 현재 보안 설정, 매크로 피처, WRDS 요구사항 문서, yfinance 임시 파이프라인까지 준비되어 있고, WRDS 확보 후 실제 연구용 로더와 factor DB를 구현해야 합니다.
+
+### 지금 구현된 부분
+
+| 영역 | 상태 | 기술적 내용 |
+|---|---|---|
+| 보안 설정 | 구현됨 | `.env.example`과 `src/autoquant_lab/config.py`로 FRED/WRDS credential을 코드 밖에서 관리합니다. |
+| 매크로 피처 | 구현됨 | `scripts/build_macro_features.py`가 FRED/ALFRED/yfinance 기반 macro-market feature를 만들고, 검증/진단 스크립트가 품질을 확인합니다. |
+| WRDS 준비 문서 | 구현됨 | `docs/` 아래에 CRSP, Compustat, IBES, CCM, manual export 요구사항이 정리되어 있습니다. |
+| WRDS 접근 확인 | 구현됨 | `scripts/probe_wrds.py`로 WRDS schema와 대표 table 접근 가능 여부를 확인합니다. |
+| 임시 주식 데이터 경로 | 구현됨 | yfinance S&P 500 label, macro join, 검증, LightGBM smoke test 스크립트가 있습니다. 단, 연구용이 아니라 prototype 전용입니다. |
+| 연구용 factor 경로 | 미구현 | WRDS 기반 CRSP/Compustat/IBES loader, point-in-time join, factor score, factor long-short label은 WRDS 확보 후 구현해야 합니다. |
+
+### 앞으로 구현해야 할 부분
+
+| 우선순위 | 산출물 | 필요한 이유 |
+|---|---|---|
+| 1 | `crsp.msf`/`crsp.dsf`, `comp.funda`, `comp.fundq`, `comp.ccmxpf_lnkhist`, IBES Summary History, `wrdsapps.ibcrsphist` 추출 스크립트 | prototype 데이터를 WRDS 연구용 원천 데이터로 교체합니다. |
+| 2 | WRDS 데이터베이스/staging schema | CRSP `PERMNO`, Compustat `GVKEY`, CCM link, IBES link, macro, factor, label을 분리하되 안전하게 join할 수 있게 합니다. |
+| 3 | point-in-time 펀더멘털 파이프라인 | `datadate`만 쓰면 미래정보가 섞일 수 있으므로 `rdq` 또는 보수적 lag 기준으로 사용 가능일을 관리합니다. |
+| 4 | factor score builder | 가격, 거래량, 재무제표, 애널리스트 데이터를 DDQM식 cross-sectional factor signal로 변환합니다. |
+| 5 | factor long-short return label | 현재 yfinance stock-level label 대신 DDQM2에 가까운 factor-level target을 만듭니다. |
+| 6 | rolling LightGBM 연구 루프 | macro feature로 factor return을 예측하고 baseline, feature importance, out-of-sample 성능을 평가합니다. |
+
+### 제안하는 WRDS 데이터베이스 구조
+
+| 테이블 | 주요 키 | 역할 |
+|---|---|---|
+| `security_master` | `permno`, `permco`, `gvkey` | 종목/기업의 안정적인 historical mapping을 관리합니다. |
+| `sp500_membership` | `permno`, `start_date`, `end_date` | 특정 시점의 S&P 500 universe를 관리합니다. |
+| `crsp_monthly_returns` | `permno`, `date` | 수익률, 상장폐지 수익률, 가격, 거래량, 주식수, 시가총액을 저장합니다. |
+| `compustat_fundamentals` | `gvkey`, `permno`, `available_date` | value, profitability, investment, leverage, cash-flow factor용 PIT 재무 데이터를 저장합니다. |
+| `ibes_estimates` | `permno`, `estimate_date`, `fiscal_period` | consensus, dispersion, coverage, revision feature를 저장합니다. |
+| `macro_features` | `date` | FRED/ALFRED macro 및 market-state feature를 저장합니다. |
+| `factor_scores` | `permno`, `date`, `factor_name` | 포트폴리오 구성 전 cross-sectional factor 값을 저장합니다. |
+| `factor_long_short_returns` | `date`, `factor_name` | DDQM식 long-short factor return label을 저장합니다. |
+| `model_dataset` | `date`, `factor_name` | LightGBM 학습용 macro feature와 target factor return을 결합합니다. |
+
+스터디용 핵심 결론은 단순합니다. 최종 구현은 ticker join이 아니라 CRSP `PERMNO`, Compustat `GVKEY`, CCM link history, IBES-CRSP link history, 그리고 명시적인 `available_date`를 기준으로 S&P 500 패널을 point-in-time 안전하게 만들어야 합니다.
 
 ## 설치 방법
 
