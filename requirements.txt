@@ -7,3 +7,5 @@ python-dotenv
 wrds
 openpyxl
 pyarrow
+lightgbm
+scikit-learn

@@ -28,6 +28,14 @@ PYTHONPATH=src python scripts/validate_yfinance_macro_dataset.py
 
 The assembled output also remains under `prototypes/yfinance_sp500/` and is ignored by git.
 
+Run a prototype-only LightGBM baseline on the assembled macro table:
+
+```bash
+PYTHONPATH=src python scripts/train_yfinance_macro_lgbm_baseline.py
+```
+
+This baseline is for pipeline smoke testing only; do not interpret it as DDQM2 research performance.
+
 ## Macro feature diagnostics
 
 Run deeper DDQM2 macro input quality checks with:
