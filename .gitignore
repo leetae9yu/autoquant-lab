@@ -16,6 +16,13 @@ data/**/exports/
 prototypes/yfinance_sp500/*.csv
 prototypes/yfinance_sp500/*.parquet
 prototypes/yfinance_sp500/*.failed_tickers.txt
+prototypes/yfinance_sp500/experiments/
+*.xlsx
+*.xls
+*.pdf
+macro code.txt
+.sisyphus/boulder.json
+.sisyphus/notepads/
 .venv/
 venv/
 env/

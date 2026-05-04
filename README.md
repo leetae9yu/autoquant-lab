@@ -24,9 +24,10 @@ This repository currently focuses on two tracks:
 | Macro feature pipeline | `scripts/build_macro_features.py`, `scripts/validate_macro_workbook.py`, `scripts/diagnose_macro_feature_quality.py` |
 | WRDS readiness | `scripts/probe_wrds.py`, `docs/wrds_manual_export_guide.md` |
 | Data requirements | `docs/crsp_requirements.md`, `docs/compustat_requirements.md`, `docs/ibes_requirements.md`, `docs/ddqm2_sp500_data_inventory.md` |
-| Prototype data path | `scripts/build_yfinance_sp500_labels.py`, `scripts/assemble_yfinance_macro_dataset.py` |
-| Prototype validation | `scripts/validate_yfinance_sp500_labels.py`, `scripts/validate_yfinance_macro_dataset.py` |
-| Prototype modeling | `scripts/train_yfinance_macro_lgbm_baseline.py` |
+| Legacy stock-return prototype | `scripts/build_yfinance_sp500_labels.py`, `scripts/assemble_yfinance_macro_dataset.py`, `scripts/train_yfinance_macro_lgbm_baseline.py` |
+| DDQM2-lite factor MVP | `scripts/build_yfinance_price_panel.py`, `scripts/build_yfinance_factor_scores.py`, `scripts/build_factor_long_short_returns.py`, `scripts/assemble_macro_factor_dataset.py`, `scripts/train_macro_factor_lgbm_baseline.py` |
+| DDQM2-lite validation | `scripts/validate_yfinance_price_panel.py`, `scripts/validate_factor_scores.py`, `scripts/validate_factor_long_short_returns.py`, `scripts/validate_macro_factor_dataset.py`, `scripts/validate_macro_factor_experiment.py` |
+| DDQM2-lite dashboard | `apps/ddqm2_lite_dashboard.py` |
 | Safety check | `scripts/scan_secrets.py` |
 
 ## Implementation status and roadmap
@@ -41,8 +42,9 @@ This section summarizes what is already implemented and what remains to build fo
 | Macro features | Implemented | `scripts/build_macro_features.py` builds FRED/ALFRED/yfinance macro-market features; validation and diagnostics scripts check workbook quality. |
 | WRDS readiness docs | Implemented | CRSP, Compustat, IBES, CCM, and manual export requirements are documented under `docs/`. |
 | WRDS access probe | Implemented | `scripts/probe_wrds.py` checks whether WRDS schemas and representative tables are accessible. |
-| Prototype equity path | Implemented | yfinance S&P 500 labels, macro join, validation, and LightGBM smoke-test scripts are available for pipeline testing only. |
-| Research-grade factor path | Not yet implemented | CRSP/Compustat/IBES loaders, point-in-time joins, factor scores, and factor long-short labels still need to be built after WRDS access is available. |
+| Legacy prototype equity path | Implemented | yfinance S&P 500 stock-level labels, macro join, validation, and LightGBM smoke-test scripts are available for simple pipeline testing only. |
+| DDQM2-lite factor path | Implemented | FRED/ALFRED macro features plus yfinance price/volume data now produce canonical price panels, factor scores, factor long-short labels, macro-factor model data, persisted LightGBM artifacts, and a read-only Streamlit dashboard. |
+| Research-grade WRDS factor path | Not yet implemented | CRSP/Compustat/IBES loaders, point-in-time joins, and research-grade survivorship-bias controls still need WRDS access. |
 
 ### What needs to be built next
 
@@ -51,9 +53,9 @@ This section summarizes what is already implemented and what remains to build fo
 | 1 | WRDS extraction scripts for `crsp.msf`/`crsp.dsf`, `comp.funda`, `comp.fundq`, `comp.ccmxpf_lnkhist`, IBES Summary History, and `wrdsapps.ibcrsphist` | Moves the project from prototype data to research-grade source data. |
 | 2 | Database/staging schema for WRDS data | Keeps CRSP `PERMNO`, Compustat `GVKEY`, CCM links, IBES links, macro features, factor scores, and labels separated but joinable. |
 | 3 | Point-in-time fundamental pipeline | Prevents lookahead bias by using `rdq` or conservative release lags instead of raw `datadate`. |
-| 4 | Factor score builders | Converts price, volume, fundamentals, and analyst data into DDQM-style cross-sectional factor signals. |
-| 5 | Factor long-short return labels | Replaces the current stock-level yfinance label prototype with DDQM-style factor-level targets. |
-| 6 | Rolling LightGBM research loop | Trains macro-to-factor-return models with baselines, feature importance, and out-of-sample evaluation. |
+| 4 | Research-grade WRDS factor score builders | Extends the DDQM2-lite public-data factors with CRSP/Compustat/IBES point-in-time signals. |
+| 5 | Research-grade WRDS factor long-short return labels | Replaces prototype yfinance/current-membership labels with CRSP-backed factor-level targets. |
+| 6 | Research-grade rolling LightGBM loop | Runs macro-to-factor-return experiments on WRDS-backed labels with baselines, feature importance, and out-of-sample evaluation. |
 
 ### Proposed WRDS database structure
 
@@ -166,7 +168,141 @@ docs/ddqm2_sp500_data_inventory.md
 
 Use this path only to verify that the pipeline works end to end before WRDS is available.
 
-### 1. Build yfinance S&P 500 labels
+### DDQM2-lite factor MVP
+
+This is the preferred WRDS-free prototype path. It uses FRED/ALFRED macro features and yfinance price/volume data to imitate the DDQM-style flow:
+
+```text
+yfinance canonical price panel
+→ price/volume factor scores
+→ factor long-short return labels
+→ FRED/ALFRED macro-factor dataset
+→ LightGBM baseline and experiment artifacts
+→ read-only Streamlit dashboard
+```
+
+Build a canonical yfinance price panel:
+
+```bash
+PYTHONPATH=src python scripts/build_yfinance_price_panel.py \
+  --tickers AAPL MSFT SPY \
+  --start-date 2020-01-01 \
+  --end-date 2020-06-30 \
+  --output prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet
+```
+
+Validate it:
+
+```bash
+PYTHONPATH=src python scripts/validate_yfinance_price_panel.py \
+  prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet
+```
+
+Build wide price/volume factor scores:
+
+```bash
+PYTHONPATH=src python scripts/build_yfinance_factor_scores.py \
+  --price-panel prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet \
+  --output prototypes/yfinance_sp500/factor_scores_smoke.parquet \
+  --smoke
+```
+
+Validate factor scores:
+
+```bash
+PYTHONPATH=src python scripts/validate_factor_scores.py \
+  prototypes/yfinance_sp500/factor_scores_smoke.parquet \
+  --smoke
+```
+
+Build factor long-short return labels:
+
+```bash
+PYTHONPATH=src python scripts/build_factor_long_short_returns.py \
+  --factor-scores prototypes/yfinance_sp500/factor_scores_smoke.parquet \
+  --price-panel prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet \
+  --output prototypes/yfinance_sp500/factor_long_short_returns_smoke.parquet \
+  --horizon-trading-days 21 \
+  --smoke
+```
+
+Validate factor labels:
+
+```bash
+PYTHONPATH=src python scripts/validate_factor_long_short_returns.py \
+  prototypes/yfinance_sp500/factor_long_short_returns_smoke.parquet \
+  --smoke
+```
+
+Assemble the macro-factor model-ready dataset:
+
+```bash
+PYTHONPATH=src python scripts/assemble_macro_factor_dataset.py \
+  --factor-returns prototypes/yfinance_sp500/factor_long_short_returns_smoke.parquet \
+  --macro-workbook expanded_macro_market_features.xlsx \
+  --output prototypes/yfinance_sp500/macro_factor_model_ready_smoke.parquet
+```
+
+Validate the model-ready dataset:
+
+```bash
+PYTHONPATH=src python scripts/validate_macro_factor_dataset.py \
+  prototypes/yfinance_sp500/macro_factor_model_ready_smoke.parquet
+```
+
+Train the macro-factor LightGBM baseline and write experiment artifacts:
+
+```bash
+PYTHONPATH=src python scripts/train_macro_factor_lgbm_baseline.py \
+  --input prototypes/yfinance_sp500/macro_factor_model_ready_smoke.parquet \
+  --output-dir prototypes/yfinance_sp500/experiments/smoke_lgbm \
+  --smoke
+```
+
+Validate the experiment artifacts:
+
+```bash
+PYTHONPATH=src python scripts/validate_macro_factor_experiment.py \
+  prototypes/yfinance_sp500/experiments/smoke_lgbm
+```
+
+Open the read-only dashboard:
+
+```bash
+PYTHONPATH=src streamlit run apps/ddqm2_lite_dashboard.py
+```
+
+The dashboard reads generated artifacts only. It does not download data, rebuild labels, retrain models, or mutate experiment files.
+
+### DDQM2-lite artifacts
+
+| Artifact | Purpose |
+|---|---|
+| `canonical_price_panel_smoke.parquet` | yfinance price/volume data in a WRDS-ready canonical schema. |
+| `factor_scores_smoke.parquet` | Raw price/volume factor scores with factor metadata. |
+| `factor_long_short_returns_smoke.parquet` | Monthly equal-weight factor long-short return labels. |
+| `macro_factor_model_ready_smoke.parquet` | Macro features joined to factor return targets. |
+| `experiments/smoke_lgbm/` | LightGBM config, metrics, predictions, feature importance, and manifest. |
+
+### WRDS expansion path
+
+The MVP is intentionally source-adapter based. Downstream factor, label, model, and dashboard logic should read canonical artifacts rather than yfinance-specific raw columns.
+
+Future WRDS adapters should replace only the source layer:
+
+```text
+CRSP adapter → canonical price/return panel with PERMNO/PERMCO and delisting returns
+Compustat adapter → PIT fundamental features through GVKEY/CCM links
+IBES adapter → analyst revision/dispersion features through IBES-CRSP links
+```
+
+After that replacement, the factor-score, factor-label, macro-factor, LightGBM, and dashboard layers should be reused where their inputs overlap.
+
+### Legacy stock-level prototype
+
+The older stock-return prototype remains available for simple plumbing checks. It predicts individual stock forward returns, so it is less DDQM-like than the factor long-short MVP.
+
+#### 1. Build yfinance S&P 500 labels
 
 Small smoke test:
 
@@ -187,7 +323,7 @@ PYTHONPATH=src python scripts/validate_yfinance_sp500_labels.py \
   --label-column forward_return_5d
 ```
 
-### 2. Join labels with macro features
+#### 2. Join labels with macro features
 
 ```bash
 PYTHONPATH=src python scripts/assemble_yfinance_macro_dataset.py \
@@ -204,7 +340,7 @@ PYTHONPATH=src python scripts/validate_yfinance_macro_dataset.py \
   --label-column forward_return_5d
 ```
 
-### 3. Run the LightGBM prototype baseline
+#### 3. Run the LightGBM prototype baseline
 
 ```bash
 PYTHONPATH=src python scripts/train_yfinance_macro_lgbm_baseline.py \
@@ -281,8 +417,9 @@ Do not commit:
 | 매크로 피처 | 구현됨 | `scripts/build_macro_features.py`가 FRED/ALFRED/yfinance 기반 macro-market feature를 만들고, 검증/진단 스크립트가 품질을 확인합니다. |
 | WRDS 준비 문서 | 구현됨 | `docs/` 아래에 CRSP, Compustat, IBES, CCM, manual export 요구사항이 정리되어 있습니다. |
 | WRDS 접근 확인 | 구현됨 | `scripts/probe_wrds.py`로 WRDS schema와 대표 table 접근 가능 여부를 확인합니다. |
-| 임시 주식 데이터 경로 | 구현됨 | yfinance S&P 500 label, macro join, 검증, LightGBM smoke test 스크립트가 있습니다. 단, 연구용이 아니라 prototype 전용입니다. |
-| 연구용 factor 경로 | 미구현 | WRDS 기반 CRSP/Compustat/IBES loader, point-in-time join, factor score, factor long-short label은 WRDS 확보 후 구현해야 합니다. |
+| 기존 임시 주식 데이터 경로 | 구현됨 | yfinance S&P 500 stock-level label, macro join, 검증, LightGBM smoke test 스크립트가 있습니다. 단순 연결 확인용이며 연구용이 아니라 prototype 전용입니다. |
+| DDQM2-lite factor 경로 | 구현됨 | FRED/ALFRED macro feature와 yfinance 가격/거래량 데이터로 canonical price panel, factor score, factor long-short label, macro-factor model dataset, LightGBM artifact, 읽기 전용 Streamlit dashboard를 생성합니다. |
+| 연구용 WRDS factor 경로 | 미구현 | CRSP/Compustat/IBES loader, point-in-time join, 연구용 생존편향 통제는 WRDS 접근 확보 후 구현해야 합니다. |
 
 ### 앞으로 구현해야 할 부분
 
@@ -291,9 +428,9 @@ Do not commit:
 | 1 | `crsp.msf`/`crsp.dsf`, `comp.funda`, `comp.fundq`, `comp.ccmxpf_lnkhist`, IBES Summary History, `wrdsapps.ibcrsphist` 추출 스크립트 | prototype 데이터를 WRDS 연구용 원천 데이터로 교체합니다. |
 | 2 | WRDS 데이터베이스/staging schema | CRSP `PERMNO`, Compustat `GVKEY`, CCM link, IBES link, macro, factor, label을 분리하되 안전하게 join할 수 있게 합니다. |
 | 3 | point-in-time 펀더멘털 파이프라인 | `datadate`만 쓰면 미래정보가 섞일 수 있으므로 `rdq` 또는 보수적 lag 기준으로 사용 가능일을 관리합니다. |
-| 4 | factor score builder | 가격, 거래량, 재무제표, 애널리스트 데이터를 DDQM식 cross-sectional factor signal로 변환합니다. |
-| 5 | factor long-short return label | 현재 yfinance stock-level label 대신 DDQM2에 가까운 factor-level target을 만듭니다. |
-| 6 | rolling LightGBM 연구 루프 | macro feature로 factor return을 예측하고 baseline, feature importance, out-of-sample 성능을 평가합니다. |
+| 4 | 연구용 WRDS factor score builder | DDQM2-lite 공개 데이터 factor를 CRSP/Compustat/IBES point-in-time signal로 확장합니다. |
+| 5 | 연구용 WRDS factor long-short return label | prototype yfinance/current-membership label을 CRSP 기반 factor-level target으로 교체합니다. |
+| 6 | 연구용 rolling LightGBM 루프 | WRDS 기반 label로 macro-to-factor-return 실험, baseline, feature importance, out-of-sample 평가를 수행합니다. |
 
 ### 제안하는 WRDS 데이터베이스 구조
 
@@ -381,7 +518,143 @@ docs/ddqm2_sp500_data_inventory.md
 
 ## WRDS 없이 임시 파이프라인 돌리기
 
-### 1. yfinance로 S&P 500 라벨 만들기
+이 경로는 WRDS 접근 전까지 전체 흐름을 확인하기 위한 prototype 전용입니다.
+
+### DDQM2-lite factor MVP
+
+권장하는 WRDS-free prototype 경로입니다. FRED/ALFRED macro feature와 yfinance 가격/거래량 데이터를 사용해 DDQM 스타일 흐름을 최대한 비슷하게 구성합니다.
+
+```text
+yfinance canonical price panel
+→ price/volume factor score
+→ factor long-short return label
+→ FRED/ALFRED macro-factor dataset
+→ LightGBM baseline 및 experiment artifact
+→ 읽기 전용 Streamlit dashboard
+```
+
+canonical yfinance price panel을 만듭니다.
+
+```bash
+PYTHONPATH=src python scripts/build_yfinance_price_panel.py \
+  --tickers AAPL MSFT SPY \
+  --start-date 2020-01-01 \
+  --end-date 2020-06-30 \
+  --output prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet
+```
+
+검증합니다.
+
+```bash
+PYTHONPATH=src python scripts/validate_yfinance_price_panel.py \
+  prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet
+```
+
+가격/거래량 기반 factor score를 만듭니다.
+
+```bash
+PYTHONPATH=src python scripts/build_yfinance_factor_scores.py \
+  --price-panel prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet \
+  --output prototypes/yfinance_sp500/factor_scores_smoke.parquet \
+  --smoke
+```
+
+factor score를 검증합니다.
+
+```bash
+PYTHONPATH=src python scripts/validate_factor_scores.py \
+  prototypes/yfinance_sp500/factor_scores_smoke.parquet \
+  --smoke
+```
+
+factor long-short return label을 만듭니다.
+
+```bash
+PYTHONPATH=src python scripts/build_factor_long_short_returns.py \
+  --factor-scores prototypes/yfinance_sp500/factor_scores_smoke.parquet \
+  --price-panel prototypes/yfinance_sp500/canonical_price_panel_smoke.parquet \
+  --output prototypes/yfinance_sp500/factor_long_short_returns_smoke.parquet \
+  --horizon-trading-days 21 \
+  --smoke
+```
+
+factor label을 검증합니다.
+
+```bash
+PYTHONPATH=src python scripts/validate_factor_long_short_returns.py \
+  prototypes/yfinance_sp500/factor_long_short_returns_smoke.parquet \
+  --smoke
+```
+
+macro-factor model-ready dataset을 만듭니다.
+
+```bash
+PYTHONPATH=src python scripts/assemble_macro_factor_dataset.py \
+  --factor-returns prototypes/yfinance_sp500/factor_long_short_returns_smoke.parquet \
+  --macro-workbook expanded_macro_market_features.xlsx \
+  --output prototypes/yfinance_sp500/macro_factor_model_ready_smoke.parquet
+```
+
+model-ready dataset을 검증합니다.
+
+```bash
+PYTHONPATH=src python scripts/validate_macro_factor_dataset.py \
+  prototypes/yfinance_sp500/macro_factor_model_ready_smoke.parquet
+```
+
+macro-factor LightGBM baseline을 학습하고 experiment artifact를 저장합니다.
+
+```bash
+PYTHONPATH=src python scripts/train_macro_factor_lgbm_baseline.py \
+  --input prototypes/yfinance_sp500/macro_factor_model_ready_smoke.parquet \
+  --output-dir prototypes/yfinance_sp500/experiments/smoke_lgbm \
+  --smoke
+```
+
+experiment artifact를 검증합니다.
+
+```bash
+PYTHONPATH=src python scripts/validate_macro_factor_experiment.py \
+  prototypes/yfinance_sp500/experiments/smoke_lgbm
+```
+
+읽기 전용 dashboard를 엽니다.
+
+```bash
+PYTHONPATH=src streamlit run apps/ddqm2_lite_dashboard.py
+```
+
+dashboard는 생성된 artifact만 읽습니다. 데이터를 다운로드하거나, label을 다시 만들거나, 모델을 재학습하거나, experiment 파일을 수정하지 않습니다.
+
+### DDQM2-lite artifact
+
+| Artifact | 역할 |
+|---|---|
+| `canonical_price_panel_smoke.parquet` | WRDS 확장에 맞춘 canonical schema의 yfinance 가격/거래량 데이터입니다. |
+| `factor_scores_smoke.parquet` | factor metadata를 포함한 가격/거래량 factor score입니다. |
+| `factor_long_short_returns_smoke.parquet` | 월별 equal-weight factor long-short return label입니다. |
+| `macro_factor_model_ready_smoke.parquet` | macro feature와 factor return target을 결합한 model-ready dataset입니다. |
+| `experiments/smoke_lgbm/` | LightGBM config, metrics, prediction, feature importance, manifest를 저장합니다. |
+
+### WRDS 확장 경로
+
+이 MVP는 source adapter를 교체할 수 있도록 구성했습니다. 하위 factor, label, model, dashboard 로직은 yfinance raw column이 아니라 canonical artifact를 읽는 방식으로 유지합니다.
+
+앞으로 WRDS adapter는 source layer만 교체하는 방향이 좋습니다.
+
+```text
+CRSP adapter → PERMNO/PERMCO와 delisting return을 포함한 canonical price/return panel
+Compustat adapter → GVKEY/CCM link 기반 point-in-time fundamental feature
+IBES adapter → IBES-CRSP link 기반 analyst revision/dispersion feature
+```
+
+이 교체 이후에도 입력 schema가 겹치는 factor-score, factor-label, macro-factor, LightGBM, dashboard layer는 재사용하는 것이 목표입니다.
+
+### 기존 stock-level prototype
+
+기존 stock-return prototype도 단순 연결 확인용으로 남겨두었습니다. 개별 종목 forward return을 예측하므로 factor long-short MVP보다 DDQM 구조와는 거리가 있습니다.
+
+#### 1. yfinance로 S&P 500 라벨 만들기
 
 ```bash
 PYTHONPATH=src python scripts/build_yfinance_sp500_labels.py \
@@ -400,7 +673,7 @@ PYTHONPATH=src python scripts/validate_yfinance_sp500_labels.py \
   --label-column forward_return_5d
 ```
 
-### 2. yfinance 라벨에 매크로 피처 붙이기
+#### 2. yfinance 라벨에 매크로 피처 붙이기
 
 ```bash
 PYTHONPATH=src python scripts/assemble_yfinance_macro_dataset.py \
@@ -417,7 +690,7 @@ PYTHONPATH=src python scripts/validate_yfinance_macro_dataset.py \
   --label-column forward_return_5d
 ```
 
-### 3. LightGBM baseline 돌리기
+#### 3. LightGBM baseline 돌리기
 
 ```bash
 PYTHONPATH=src python scripts/train_yfinance_macro_lgbm_baseline.py \
