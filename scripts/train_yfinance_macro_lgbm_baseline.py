@@ -142,6 +142,14 @@ def mean_daily_ic(valid: pd.DataFrame, label_column: str, predictions: NDArray[n
     return float(np.mean(daily_values)) if daily_values else float("nan")
 
 
+def naive_predictions(train: pd.DataFrame, valid: pd.DataFrame, label_column: str) -> dict[str, NDArray[np.float64]]:
+    train_mean = float(train[label_column].mean())
+    return {
+        "zero_return": np.zeros(len(valid), dtype=float),
+        "train_mean_return": np.full(len(valid), train_mean, dtype=float),
+    }
+
+
 def train_baseline(
     train: pd.DataFrame,
     valid: pd.DataFrame,
@@ -186,6 +194,7 @@ def print_run_summary(
     valid: pd.DataFrame,
     metrics: dict[str, float],
     daily_ic: float,
+    naive_metrics: dict[str, dict[str, float]],
     best_iteration: int | None,
 ) -> None:
     print(PROTOTYPE_WARNING)
@@ -203,6 +212,15 @@ def print_run_summary(
     print(f"R2: {metrics['r2']:.8f}")
     print(f"Pearson IC: {metrics['pearson_ic']:.8f}")
     print(f"Mean daily IC: {daily_ic:.8f}")
+    print("Naive baseline metrics:")
+    for baseline_name, baseline_metrics in naive_metrics.items():
+        metric_parts = [
+            f"MAE={baseline_metrics['mae']:.8f}",
+            f"RMSE={baseline_metrics['rmse']:.8f}",
+            f"R2={baseline_metrics['r2']:.8f}",
+            f"Pearson IC={baseline_metrics['pearson_ic']:.8f}",
+        ]
+        print(f"{baseline_name}: {', '.join(metric_parts)}")
 
 
 def main() -> None:
@@ -215,7 +233,21 @@ def main() -> None:
     y_valid = valid[label_column].to_numpy(dtype=float)
     metrics = regression_metrics(y_valid, predictions)
     daily_ic = mean_daily_ic(valid, label_column, predictions)
-    print_run_summary(args.input, label_column, feature_columns, train, valid, metrics, daily_ic, best_iteration)
+    naive_metrics = {
+        name: regression_metrics(y_valid, baseline_predictions)
+        for name, baseline_predictions in naive_predictions(train, valid, label_column).items()
+    }
+    print_run_summary(
+        args.input,
+        label_column,
+        feature_columns,
+        train,
+        valid,
+        metrics,
+        daily_ic,
+        naive_metrics,
+        best_iteration,
+    )
 
 
 if __name__ == "__main__":
