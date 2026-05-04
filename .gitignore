@@ -13,6 +13,9 @@ data/manifests/
 data/**/raw/
 data/**/extracts/
 data/**/exports/
+prototypes/yfinance_sp500/*.csv
+prototypes/yfinance_sp500/*.parquet
+prototypes/yfinance_sp500/*.failed_tickers.txt
 .venv/
 venv/
 env/
