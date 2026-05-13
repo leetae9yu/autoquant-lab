@@ -1,5 +1,7 @@
 # autoquant-lab
 
+[한국어 README](README_ko.md)
+
 Canonical scaffold for the EQR autoresearch platform.
 
 This repository is being reset around an EQR-first layout. Active package code lives under
