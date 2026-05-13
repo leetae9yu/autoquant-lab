@@ -31,6 +31,28 @@ point-in-time joins, a SQLite experiment ledger, config-only agent autonomy, and
 history. The PDFs and `EQR.md` are local research references and are not required to be committed for
 the code scaffold to run.
 
+## EQR.md study objective
+
+The current implementation is designed to support the local `EQR.md` study goal: run all feasible
+EQR factor and methodology experiments on a server for many hours, excluding GPU-only methods such as
+LSTM and Transformer models, and produce a DDQM2-style final research trail.
+
+The supported path is:
+
+1. Read local prepared WRDS/FRED/yfinance-derived artifacts only.
+2. Build point-in-time monthly stock panels and feature families.
+3. Convert the EQR factor taxonomy into stock-level factor scores.
+4. Convert factor scores into next-1-month long-short factor returns.
+5. Train one CPU-friendly model per factor from macro/market features.
+6. Convert predicted factor returns into dynamic factor weights.
+7. Backtest the realized factor portfolio and write reports/artifacts.
+
+This means the repository can now produce the core DDQM2-shaped output for the study: factor return
+labels, factor-return predictions, factor allocation weights, portfolio returns, a manifest, and a
+markdown report. Some EQR factors are implemented through documented proxies because the currently
+available local data does not expose the exact original source column; source-absent factors are
+marked unavailable rather than silently faked.
+
 ## Active layout
 
 | Area | Path | Purpose |
@@ -197,7 +219,23 @@ The CI report is written to `reports/eqr_ci_report.json`.
 Do not modify or regenerate files under `data/` as part of scaffold work. Existing local WRDS-style
 data is treated as user data and should only be read by path resolvers or metadata checks.
 
-The golden path is offline-only: no WRDS login prompts, no credential collection, no network downloads, and no external APIs. Generated performance metrics are engineering smoke evidence for the research harness, not investment advice or a tradability claim.
+The golden path is offline-only: no WRDS login prompts, no credential collection, no network downloads, and no external APIs during experiment execution. If FRED or yfinance data is used, fetch it outside the modeling run and place the resulting files under the local `data/` contract first. Any future online ingest utility must be opt-in, isolated from CI/server experiments, and guarded by an explicit flag such as `--allow-network`.
+
+Generated performance metrics are engineering smoke evidence for the research harness, not investment advice or a tradability claim.
+
+## DDQM2 factor-return run
+
+After preparing monthly labels and feature parquet files, run the factor-return track:
+
+```bash
+python scripts/eqr_run_ddqm2.py \
+  --config configs/server_full.yaml \
+  --panel experiments/prepared/panel/monthly_labels.parquet \
+  --feature-dir experiments/prepared/features \
+  --model lightgbm
+```
+
+The command builds stock-level EQR factor scores, converts them into 1-month factor long-short returns, trains one CPU model per factor from `macro__*` features, creates DDQM2 non-negative factor weights, backtests the realized factor portfolio, and writes `report.md`, parquet artifacts, and `manifest.json` under `experiments/ddqm2/<run-id>/`.
 
 ## Skill documentation
 

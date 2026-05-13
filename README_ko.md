@@ -21,6 +21,22 @@
 
 이 레포는 삼성증권의 한국 시장 실전 모델을 그대로 복제하는 것이 아닙니다. DDQM/DDQM2의 연구 패턴을 참고하되, 미국 로컬 데이터, 명시적인 point-in-time 조인, SQLite 실험 ledger, config-only 에이전트 자동화, 정적 실험 히스토리 사이트를 갖춘 재현 가능한 리서치 하네스로 다시 설계합니다. PDF와 `EQR.md`는 로컬 연구 참고자료이며, 코드 스캐폴드를 실행하기 위해 커밋될 필요는 없습니다.
 
+## EQR.md 스터디 목표
+
+현재 구현은 로컬 `EQR.md` 스터디 목표를 달성하기 위한 실행 경로를 제공합니다. 즉, 서버에서 수십 시간 동안 EQR factor/methodology 실험을 반복 실행하되, LSTM/Transformer 같은 GPU 전용 모델은 제외하고, DDQM2 형식의 최종 연구 기록을 남기는 것이 목표입니다.
+
+지원되는 흐름은 다음과 같습니다.
+
+1. 미리 로컬에 준비한 WRDS/FRED/yfinance 계열 artifact만 읽습니다.
+2. point-in-time 월별 종목 패널과 feature family를 만듭니다.
+3. EQR factor taxonomy를 종목별 factor score로 변환합니다.
+4. factor score를 다음 1개월 long-short factor return으로 변환합니다.
+5. macro/market feature로 factor별 CPU-friendly 모델을 학습합니다.
+6. 예측 factor return을 동적 factor weight로 변환합니다.
+7. realized factor portfolio를 백테스트하고 report/artifact를 저장합니다.
+
+따라서 이 레포는 스터디에 필요한 DDQM2 형태의 핵심 산출물, 즉 factor return label, factor return prediction, factor allocation weight, portfolio return, manifest, markdown report를 생성할 수 있습니다. 단, 현재 로컬 데이터에 원본 소스 컬럼이 없는 일부 EQR factor는 명시적인 proxy로 구현되어 있고, source 자체가 없는 factor는 임의로 만들지 않고 unavailable로 표시합니다.
+
 ## 활성 레이아웃
 
 | 영역 | 경로 | 역할 |
@@ -253,8 +269,24 @@ CI 리포트는 `reports/eqr_ci_report.json`에 생성됩니다.
 - `data/`는 git에 올리지 않습니다.
 - 파이프라인은 `data/`를 읽기만 합니다.
 - WRDS 로그인이나 credential 입력을 요구하지 않습니다.
-- 네트워크 다운로드나 외부 API 호출을 하지 않습니다.
+- 실험 실행 중 네트워크 다운로드나 외부 API 호출을 하지 않습니다.
+- FRED/yfinance 데이터를 쓰려면 모델링 런 밖에서 미리 받아 `data/` 계약에 맞는 로컬 파일로 저장한 뒤 읽습니다.
+- 나중에 온라인 ingest 유틸리티를 추가하더라도 CI/서버 실험과 분리하고 `--allow-network` 같은 명시적 플래그가 있을 때만 동작해야 합니다.
 - 생성된 metrics는 하네스 검증용이며 투자 조언이 아닙니다.
+
+## DDQM2 팩터 수익률 실행
+
+월별 label/features parquet를 준비한 뒤 다음 명령으로 DDQM2 경로를 실행합니다.
+
+```bash
+python scripts/eqr_run_ddqm2.py \
+  --config configs/server_full.yaml \
+  --panel experiments/prepared/panel/monthly_labels.parquet \
+  --feature-dir experiments/prepared/features \
+  --model lightgbm
+```
+
+이 명령은 종목별 EQR factor score를 만들고, 1개월 factor long-short return으로 변환한 뒤, `macro__*` feature로 factor별 CPU 모델을 학습합니다. 이후 DDQM2 방식의 non-negative factor weight를 만들고 realized factor portfolio를 백테스트하여 `experiments/ddqm2/<run-id>/` 아래에 `report.md`, parquet artifact, `manifest.json`을 저장합니다.
 
 ## Codex Skill 문서
 

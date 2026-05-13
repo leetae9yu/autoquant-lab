@@ -1,4 +1,6 @@
-# autoquant-lab Codex Skill
+# EQR Autoresearch Skill
+
+Codex Skill for `autoquant-lab`.
 
 ## Overview
 
