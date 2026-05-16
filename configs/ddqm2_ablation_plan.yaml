@@ -1,0 +1,113 @@
+name: "DDQM2-style U.S. ablation plan"
+objective: >-
+  Keep the DDQM2 adaptation open-ended: q, model family, factor universe,
+  macro feature design, allocation rule, and final portfolio construction are
+  explicit research axes. Runnable choices generate current eqr_run_ddqm2.py
+  commands; planned choices document what Codex should implement before running.
+base_command: ["python", "scripts/eqr_run_ddqm2.py", "--config", "configs/server_full.yaml"]
+notes:
+  - "Do not force q=0.10; treat decile as the DDQM2-reference setting and compare it with wider U.S. buckets."
+  - "Macro expansion belongs in ablation tracks, not as an untracked one-off feature dump."
+  - "Prefer walk-forward OOS for model selection; keep fixed holdout as a diagnostic."
+axes:
+  - name: "tail_quantile"
+    description: "Long/short bucket width used to form factor returns."
+    choices:
+      - name: "q10_ddqm2_reference"
+        description: "DDQM2 decile-style factor label."
+        cli_args: ["--quantile", "0.10"]
+        source_alignment: "DDQM2 reference"
+      - name: "q15_narrow_adaptation"
+        description: "Narrow U.S. adaptation bucket between decile and quintile."
+        cli_args: ["--quantile", "0.15"]
+        source_alignment: "adaptation"
+      - name: "q20_current_practical"
+        description: "Current practical U.S. candidate bucket with larger legs."
+        cli_args: ["--quantile", "0.20"]
+        source_alignment: "adaptation"
+      - name: "q30_diversified_stress"
+        description: "Wider, more diversified leg stress."
+        cli_args: ["--quantile", "0.30"]
+        source_alignment: "adaptation"
+  - name: "model_family"
+    description: "CPU-friendly per-factor return forecasting model."
+    choices:
+      - name: "lightgbm_reference"
+        description: "LightGBM regression, closest to DDQM2."
+        cli_args: ["--model", "lightgbm"]
+        source_alignment: "DDQM2 reference"
+      - name: "baseline_mean_control"
+        description: "Mean-return control model."
+        cli_args: ["--model", "baseline_mean"]
+        source_alignment: "control"
+      - name: "ridge_linear_control"
+        description: "Linear shrinkage control model."
+        cli_args: ["--model", "ridge"]
+        source_alignment: "control"
+      - name: "elasticnet_linear_control"
+        description: "Sparse/shrinkage linear control model."
+        cli_args: ["--model", "elasticnet"]
+        source_alignment: "control"
+  - name: "allocation_floor"
+    description: "Minimum non-negative factor allocation floor supported by current factor-allocation backtest."
+    choices:
+      - name: "no_floor_current"
+        description: "Current no-minimum allocation rule."
+        cli_args: ["--min-weight", "0.0"]
+        source_alignment: "current harness"
+      - name: "one_percent_floor"
+        description: "Small allocation floor stress."
+        cli_args: ["--min-weight", "0.01"]
+        source_alignment: "adaptation"
+      - name: "three_percent_ddqm2_probe"
+        description: "Probe DDQM2-like 3% floor, without special reversal-factor exception yet."
+        cli_args: ["--min-weight", "0.03"]
+        source_alignment: "partial DDQM2 reference"
+  - name: "factor_universe"
+    description: "Which factors are eligible for forecasting/allocation."
+    choices:
+      - name: "all_implemented_current"
+        description: "Current implemented/proxy EQR factor registry."
+        cli_args: ["--factor-universe", "all_implemented_current"]
+        runnable: true
+        source_alignment: "current harness"
+      - name: "selected_13_global_local"
+        description: "DDQM2-style final factor set chosen by global-alpha and local-alpha screens."
+        cli_args: ["--factor-universe", "selected_13_global_local", "--factor-universe-target-count", "13"]
+        runnable: true
+        source_alignment: "DDQM2 reference"
+      - name: "selected_13_plus_us_overrides"
+        description: "U.S. adaptation of the DDQM2 13-factor set with documented substitutes."
+        runnable: false
+        source_alignment: "adaptation"
+  - name: "macro_feature_design"
+    description: "Macro/market feature set used by per-factor models."
+    choices:
+      - name: "current_macro_family"
+        description: "Current prepared macro feature family."
+        cli_args: ["--macro-feature-design", "current_macro_family"]
+        runnable: true
+        source_alignment: "current harness"
+      - name: "ddqm2_25x3_us_macro"
+        description: "U.S. 25-base-variable design with current, 20-day direction, and 60-day direction features."
+        cli_args: ["--macro-feature-design", "ddqm2_25x3_us_macro"]
+        runnable: true
+        source_alignment: "DDQM2 reference adaptation"
+      - name: "expanded_us_macro"
+        description: "Open macro expansion track for rates, credit, inflation, dollar, oil, volatility, and activity variables."
+        cli_args: ["--macro-feature-design", "expanded_us_macro"]
+        runnable: true
+        source_alignment: "adaptation"
+  - name: "portfolio_surface"
+    description: "Final object being evaluated."
+    choices:
+      - name: "weighted_factor_return_current"
+        description: "Current weighted factor long-short return backtest."
+        cli_args: ["--portfolio-surface", "weighted_factor_return_current"]
+        runnable: true
+        source_alignment: "current harness"
+      - name: "stock_score_qspread_ddqm2"
+        description: "DDQM2-like stock-level weighted factor score, top/bottom decile QSpread, and turnover."
+        cli_args: ["--portfolio-surface", "stock_score_qspread_ddqm2"]
+        runnable: true
+        source_alignment: "DDQM2 reference"
