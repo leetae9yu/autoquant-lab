@@ -25,11 +25,15 @@ if SRC_DIR.is_dir():
 
 from autoquant_lab.eqr.factors import (  # noqa: E402
     backtest_factor_allocations,
+    backtest_stock_score_qspread,
     build_factor_allocations,
     build_factor_long_short_returns,
     build_factor_scores,
+    macro_design_columns,
+    select_factor_universe,
     train_factor_return_models,
 )
+from autoquant_lab.eqr.factors.definitions import implemented_factor_definitions  # noqa: E402
 from autoquant_lab.eqr.models.registry import available_models  # noqa: E402
 
 
@@ -57,6 +61,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--holdout-fraction", type=float, default=None, help="Most recent fraction used for holdout.")
     parser.add_argument("--min-observations", type=int, default=None, help="Minimum date observations per factor model.")
     parser.add_argument("--min-weight", type=float, default=None, help="Optional minimum non-negative factor weight.")
+    parser.add_argument("--max-factor-score-rows", type=int, default=None, help="Safety cap on estimated long factor-score rows.")
+    parser.add_argument("--factor-score-chunk-dates", type=int, default=None, help="Build factor scores/returns in formation-date chunks; <=0 disables chunking.")
+    parser.add_argument("--factor-universe", choices=("all_implemented_current", "selected_13_global_local", "selected_13_plus_us_overrides"), default=None, help="Eligible factor universe for modeling/allocation.")
+    parser.add_argument("--factor-universe-target-count", type=int, default=None, help="Target factor count for selected universes; defaults to 13.")
+    parser.add_argument("--macro-feature-design", choices=("current_macro_family", "ddqm2_25x3_us_macro", "expanded_us_macro"), default=None, help="Macro feature design used by factor models.")
+    parser.add_argument("--portfolio-surface", choices=("weighted_factor_return_current", "stock_score_qspread_ddqm2"), default=None, help="Portfolio surface to backtest.")
+    parser.add_argument("--evaluation-mode", choices=("single_holdout", "walk_forward"), default=None, help="DDQM2 evaluation protocol; walk_forward gives expanding-window OOS predictions.")
+    parser.add_argument("--walk-forward-test-periods", type=int, default=None, help="Number of monthly periods per walk-forward OOS fold.")
+    parser.add_argument("--walk-forward-validation-periods", type=int, default=None, help="Number of recent periods held out for validation inside each walk-forward fold.")
     return parser.parse_args()
 
 
@@ -105,20 +118,25 @@ def _read_prepared_features(feature_dir: Path) -> pd.DataFrame:
 
 
 def load_research_frame(panel_path: Path, feature_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    panel = load_prepared_panel(panel_path)
+    features = _read_prepared_features(feature_dir)
+    features[PERIOD_COLUMN] = pd.to_datetime(features[PERIOD_COLUMN], errors="coerce")
+    return panel, features
+
+
+def load_prepared_panel(panel_path: Path) -> pd.DataFrame:
     if not panel_path.exists():
         raise FileNotFoundError(f"Prepared panel does not exist: {panel_path}")
     panel = pd.read_parquet(panel_path)
     panel[PERIOD_COLUMN] = pd.to_datetime(panel[PERIOD_COLUMN], errors="coerce")
     if panel.duplicated([ID_COLUMN, PERIOD_COLUMN]).any():
         raise ValueError("Prepared panel has duplicate (permno, formation_date) keys")
-    features = _read_prepared_features(feature_dir)
-    features[PERIOD_COLUMN] = pd.to_datetime(features[PERIOD_COLUMN], errors="coerce")
-    return panel, features
+    return panel
 
 
-def _smoke_cap(panel: pd.DataFrame, features: pd.DataFrame, max_rows: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _cap_panel(panel: pd.DataFrame, max_rows: int) -> pd.DataFrame:
     if max_rows <= 0 or len(panel) <= max_rows:
-        return panel, features
+        return panel
     sorted_panel = panel.sort_values([PERIOD_COLUMN, ID_COLUMN]).reset_index(drop=True)
     period_counts = sorted_panel.groupby(PERIOD_COLUMN, sort=True).size()
     chosen: list[pd.Timestamp] = []
@@ -130,12 +148,15 @@ def _smoke_cap(panel: pd.DataFrame, features: pd.DataFrame, max_rows: int) -> tu
         chosen.append(pd.Timestamp(period))
         running += count
     if len(chosen) < 6:
-        capped_panel = sorted_panel.head(max_rows).copy()
-        chosen = [pd.Timestamp(date) for date in sorted(capped_panel[PERIOD_COLUMN].dropna().unique()) if not pd.isna(date)]
-    else:
-        capped_panel = sorted_panel.loc[sorted_panel[PERIOD_COLUMN].isin(chosen)].copy()
-    capped_features = features.loc[features[PERIOD_COLUMN].isin(chosen)].copy()
-    return capped_panel, capped_features
+        return sorted_panel.head(max_rows).copy()
+    return sorted_panel.loc[sorted_panel[PERIOD_COLUMN].isin(chosen)].copy()
+
+
+def _filter_features_to_panel_dates(features: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
+    features = features.copy()
+    features[PERIOD_COLUMN] = pd.to_datetime(features[PERIOD_COLUMN], errors="coerce")
+    chosen = [pd.Timestamp(date) for date in sorted(panel[PERIOD_COLUMN].dropna().unique()) if not pd.isna(date)]
+    return features.loc[features[PERIOD_COLUMN].isin(chosen)].copy()
 
 
 def _safe_run_id(run_id: str) -> str:
@@ -179,13 +200,105 @@ def _portfolio_summary(portfolio: pd.DataFrame) -> dict[str, float | int]:
     returns = pd.to_numeric(portfolio["portfolio_return"], errors="coerce").fillna(0.0)
     equity = (1.0 + returns).cumprod()
     drawdown = equity / equity.cummax() - 1.0
-    return {
+    summary: dict[str, float | int] = {
         "periods": int(len(portfolio)),
         "mean_monthly_return": float(returns.mean()),
         "volatility_monthly": float(returns.std(ddof=0)),
         "cumulative_return": float(equity.iloc[-1] - 1.0),
         "max_drawdown": float(drawdown.min()),
     }
+    for column in ("long_count", "short_count", "turnover", "long_turnover", "short_turnover", "max_factor_weight", "mean_herfindahl_weight"):
+        if column in portfolio.columns:
+            summary[column] = float(pd.to_numeric(portfolio[column], errors="coerce").mean())
+    return summary
+
+
+def _portfolio_summaries_by_split(portfolio: pd.DataFrame) -> dict[str, dict[str, float | int]]:
+    return {split: _portfolio_summary(group.sort_values("formation_date")) for split, group in portfolio.groupby("split", sort=True)}
+
+
+def _headline_portfolio_summary(portfolio: pd.DataFrame) -> dict[str, float | int]:
+    if "split" in portfolio.columns and (portfolio["split"] == "holdout").any():
+        return _portfolio_summary(portfolio.loc[portfolio["split"] == "holdout"].sort_values("formation_date"))
+    return _portfolio_summary(portfolio.sort_values("formation_date"))
+
+
+def _date_chunks(panel: pd.DataFrame, chunk_dates: int) -> list[list[pd.Timestamp]]:
+    dates = [pd.Timestamp(date) for date in sorted(panel[PERIOD_COLUMN].dropna().unique()) if not pd.isna(date)]
+    if chunk_dates <= 0:
+        return [dates]
+    return [dates[index : index + chunk_dates] for index in range(0, len(dates), chunk_dates)]
+
+
+def _estimated_factor_score_rows(panel: pd.DataFrame, chunk_dates: int) -> int:
+    factor_count = len(implemented_factor_definitions())
+    if chunk_dates <= 0:
+        return int(len(panel)) * factor_count
+    max_panel_rows = 0
+    for dates in _date_chunks(panel, chunk_dates):
+        rows = int(panel[PERIOD_COLUMN].isin(dates).sum())
+        max_panel_rows = max(max_panel_rows, rows)
+    return max_panel_rows * factor_count
+
+
+def _enforce_factor_score_budget(panel: pd.DataFrame, config: dict[str, Any], cli_limit: int | None, chunk_dates: int) -> None:
+    ddqm2 = _ddqm2_config(config)
+    limit = int(cli_limit if cli_limit is not None else ddqm2.get("max_factor_score_rows", 30_000_000))
+    if limit <= 0:
+        return
+    estimated_rows = _estimated_factor_score_rows(panel, chunk_dates)
+    if estimated_rows > limit:
+        scope = "chunk" if chunk_dates > 0 else "total"
+        message = (
+            f"Estimated factor-score rows exceed safety cap: estimated={estimated_rows} limit={limit} scope={scope}. "
+            "Lower --max-rows, lower --factor-score-chunk-dates, or raise --max-factor-score-rows only after checking memory."
+        )
+        raise ValueError(message)
+
+
+def _build_factor_artifacts(
+    features: pd.DataFrame,
+    panel: pd.DataFrame,
+    *,
+    return_column: str,
+    quantile: float,
+    run_dir: Path,
+    chunk_dates: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, int, list[str], pd.DataFrame]:
+    if chunk_dates <= 0:
+        factor_scores, metadata = build_factor_scores(features)
+        factor_returns = build_factor_long_short_returns(factor_scores, panel, return_column=return_column, quantile=quantile)
+        factor_scores.to_parquet(run_dir / "factor_scores.parquet", index=False)
+        return metadata, factor_returns, int(len(factor_scores)), ["factor_scores.parquet"], factor_scores
+
+    metadata = pd.DataFrame([definition.to_dict() for definition in implemented_factor_definitions()])
+    score_dir = run_dir / "factor_scores"
+    score_dir.mkdir(parents=True, exist_ok=True)
+    factor_return_frames: list[pd.DataFrame] = []
+    factor_score_rows = 0
+    for chunk_index, dates in enumerate(_date_chunks(panel, chunk_dates)):
+        chunk_panel = panel.loc[panel[PERIOD_COLUMN].isin(dates)].copy()
+        chunk_features = features.loc[features[PERIOD_COLUMN].isin(dates)].copy()
+        factor_scores, _ = build_factor_scores(chunk_features)
+        factor_score_rows += int(len(factor_scores))
+        factor_scores.to_parquet(score_dir / f"part-{chunk_index:04d}.parquet", index=False)
+        factor_returns = build_factor_long_short_returns(factor_scores, chunk_panel, return_column=return_column, quantile=quantile)
+        if not factor_returns.empty:
+            factor_return_frames.append(factor_returns)
+
+    if factor_return_frames:
+        factor_returns = pd.concat(factor_return_frames, ignore_index=True).sort_values([PERIOD_COLUMN, "factor_id"]).reset_index(drop=True)
+    else:
+        factor_returns = pd.DataFrame()
+    score_frames = [pd.read_parquet(path) for path in sorted(score_dir.glob("part-*.parquet"))]
+    factor_scores = pd.concat(score_frames, ignore_index=True) if score_frames else pd.DataFrame()
+    return metadata, factor_returns, factor_score_rows, ["factor_scores/"], factor_scores
+
+
+def _format_metric(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return f"{float(value):.6f}"
 
 
 def _write_report(run_dir: Path, manifest: dict[str, Any], metrics: pd.DataFrame, portfolio_summary: dict[str, float | int]) -> None:
@@ -197,9 +310,11 @@ def _write_report(run_dir: Path, manifest: dict[str, Any], metrics: pd.DataFrame
         f"- Model: `{manifest['model']}`",
         f"- Factor definitions used: {manifest['factor_definition_count']}",
         f"- Factor return rows: {manifest['factor_return_rows']}",
+        "- Headline split: `holdout` when available; train/validation are diagnostics only.",
         f"- Portfolio periods: {portfolio_summary['periods']}",
-        f"- Cumulative return: {portfolio_summary['cumulative_return']:.6f}",
-        f"- Max drawdown: {portfolio_summary['max_drawdown']:.6f}",
+        f"- Holdout cumulative return: {portfolio_summary['cumulative_return']:.6f}",
+        f"- Holdout max drawdown: {portfolio_summary['max_drawdown']:.6f}",
+        f"- Holdout turnover: {portfolio_summary.get('turnover', 0.0):.6f}",
         "",
         "## Top holdout factor models",
         "",
@@ -210,7 +325,10 @@ def _write_report(run_dir: Path, manifest: dict[str, Any], metrics: pd.DataFrame
         lines.append("| factor_id | validation_corr | holdout_corr | holdout_mae |")
         lines.append("|---|---:|---:|---:|")
         for row in top.to_dict("records"):
-            lines.append(f"| {row['factor_id']} | {row.get('validation_correlation', np.nan):.6f} | {row.get('holdout_correlation', np.nan):.6f} | {row.get('holdout_mae', np.nan):.6f} |")
+            lines.append(
+                f"| {row['factor_id']} | {_format_metric(row.get('validation_correlation'))} | "
+                f"{_format_metric(row.get('holdout_correlation'))} | {_format_metric(row.get('holdout_mae'))} |"
+            )
     lines.extend(
         [
             "",
@@ -233,11 +351,46 @@ def main() -> int:
     holdout_fraction = float(args.holdout_fraction if args.holdout_fraction is not None else ddqm2.get("holdout_fraction", 0.15))
     min_observations = int(args.min_observations if args.min_observations is not None else ddqm2.get("min_observations", 24))
     min_weight = float(args.min_weight if args.min_weight is not None else ddqm2.get("min_weight", 0.0))
+    factor_score_chunk_dates = int(args.factor_score_chunk_dates if args.factor_score_chunk_dates is not None else ddqm2.get("factor_score_chunk_dates", 0))
+    factor_universe = str(args.factor_universe if args.factor_universe is not None else ddqm2.get("factor_universe", "all_implemented_current"))
+    factor_universe_target_count = int(args.factor_universe_target_count if args.factor_universe_target_count is not None else ddqm2.get("factor_universe_target_count", 13))
+    macro_feature_design = str(args.macro_feature_design if args.macro_feature_design is not None else ddqm2.get("macro_feature_design", "current_macro_family"))
+    portfolio_surface = str(args.portfolio_surface if args.portfolio_surface is not None else ddqm2.get("portfolio_surface", "weighted_factor_return_current"))
+    evaluation_mode = str(args.evaluation_mode if args.evaluation_mode is not None else ddqm2.get("evaluation_mode", "single_holdout"))
+    walk_forward_test_periods = int(args.walk_forward_test_periods if args.walk_forward_test_periods is not None else ddqm2.get("walk_forward_test_periods", 12))
+    walk_forward_validation_periods = int(args.walk_forward_validation_periods if args.walk_forward_validation_periods is not None else ddqm2.get("walk_forward_validation_periods", 12))
 
-    panel, features = load_research_frame(args.panel, args.feature_dir)
-    panel, features = _smoke_cap(panel, features, args.max_rows)
-    factor_scores, metadata = build_factor_scores(features)
-    factor_returns = build_factor_long_short_returns(factor_scores, panel, return_column=args.return_column, quantile=quantile)
+    panel = _cap_panel(load_prepared_panel(args.panel), args.max_rows)
+    _enforce_factor_score_budget(panel, config, args.max_factor_score_rows, factor_score_chunk_dates)
+    run_id = _safe_run_id(args.run_id or f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_ddqm2_{model_name}")
+    run_dir = _safe_run_dir(args.output_dir, run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    features = _filter_features_to_panel_dates(_read_prepared_features(args.feature_dir), panel)
+    metadata, factor_returns, factor_score_rows, factor_score_artifacts, factor_scores = _build_factor_artifacts(
+        features,
+        panel,
+        return_column=args.return_column,
+        quantile=quantile,
+        run_dir=run_dir,
+        chunk_dates=factor_score_chunk_dates,
+    )
+    all_definitions = implemented_factor_definitions()
+    selected_definitions, selected_metadata = select_factor_universe(
+        factor_returns,
+        features,
+        all_definitions,
+        universe=factor_universe,
+        target_count=factor_universe_target_count,
+        overrides=ddqm2.get("factor_universe_overrides", []) if isinstance(ddqm2.get("factor_universe_overrides", []), list) else [],
+        macro_feature_design=macro_feature_design,
+    )
+    selected_factor_ids = {definition.factor_id for definition in selected_definitions}
+    if not selected_factor_ids:
+        raise ValueError(f"Factor universe produced no runnable factors: {factor_universe}")
+    metadata = selected_metadata if not selected_metadata.empty else metadata.loc[metadata["factor_id"].isin(selected_factor_ids)].copy()
+    factor_returns = factor_returns.loc[factor_returns["factor_id"].isin(selected_factor_ids)].copy()
+    factor_scores = factor_scores.loc[factor_scores["factor_id"].isin(selected_factor_ids)].copy()
     result = train_factor_return_models(
         factor_returns,
         features,
@@ -246,22 +399,31 @@ def main() -> int:
         validation_fraction=validation_fraction,
         holdout_fraction=holdout_fraction,
         min_observations=min_observations,
+        evaluation_mode=evaluation_mode,
+        walk_forward_test_periods=walk_forward_test_periods,
+        walk_forward_validation_periods=walk_forward_validation_periods,
+        macro_feature_design=macro_feature_design,
     )
     allocations = build_factor_allocations(result.predictions, min_weight=min_weight)
-    portfolio = backtest_factor_allocations(allocations, factor_returns)
-    portfolio_summary = _portfolio_summary(portfolio)
+    if portfolio_surface == "weighted_factor_return_current":
+        portfolio = backtest_factor_allocations(allocations, factor_returns)
+        qspread_legs = pd.DataFrame()
+    elif portfolio_surface == "stock_score_qspread_ddqm2":
+        portfolio, qspread_legs = backtest_stock_score_qspread(allocations, factor_scores, panel, return_column=args.return_column, quantile=0.10)
+    else:
+        raise ValueError(f"Unsupported portfolio surface: {portfolio_surface}")
+    portfolio_summary = _headline_portfolio_summary(portfolio)
+    split_portfolio_summary = _portfolio_summaries_by_split(portfolio)
+    macro_columns, macro_missing_columns = macro_design_columns(features, macro_feature_design)
 
-    run_id = _safe_run_id(args.run_id or f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_ddqm2_{model_name}")
-    run_dir = _safe_run_dir(args.output_dir, run_id)
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    factor_scores.to_parquet(run_dir / "factor_scores.parquet", index=False)
     metadata.to_csv(run_dir / "factor_metadata.csv", index=False)
     factor_returns.to_parquet(run_dir / "factor_returns.parquet", index=False)
     result.predictions.to_parquet(run_dir / "factor_predictions.parquet", index=False)
     result.metrics.to_csv(run_dir / "factor_model_metrics.csv", index=False)
     allocations.to_parquet(run_dir / "factor_allocations.parquet", index=False)
     portfolio.to_parquet(run_dir / "portfolio_returns.parquet", index=False)
+    if not qspread_legs.empty:
+        qspread_legs.to_parquet(run_dir / "qspread_legs.parquet", index=False)
     (run_dir / "portfolio_summary.json").write_text(json.dumps(portfolio_summary, indent=2, default=_json_default), encoding="utf-8")
 
     manifest = {
@@ -277,21 +439,34 @@ def main() -> int:
         "holdout_fraction": holdout_fraction,
         "min_observations": min_observations,
         "min_weight": min_weight,
+        "factor_universe": factor_universe,
+        "factor_universe_target_count": factor_universe_target_count,
+        "selected_factor_ids": sorted(selected_factor_ids),
+        "macro_feature_design": macro_feature_design,
+        "macro_feature_count": int(len(macro_columns)),
+        "macro_feature_missing": macro_missing_columns,
+        "portfolio_surface": portfolio_surface,
+        "evaluation_mode": evaluation_mode,
+        "walk_forward_test_periods": walk_forward_test_periods,
+        "walk_forward_validation_periods": walk_forward_validation_periods,
+        "factor_score_chunk_dates": factor_score_chunk_dates,
         "panel_rows": int(len(panel)),
         "feature_rows": int(len(features)),
-        "factor_score_rows": int(len(factor_scores)),
+        "factor_score_rows": factor_score_rows,
         "factor_definition_count": int(len(metadata)),
         "factor_return_rows": int(len(factor_returns)),
         "prediction_rows": int(len(result.predictions)),
         "portfolio_summary": portfolio_summary,
+        "split_portfolio_summary": split_portfolio_summary,
         "artifacts": [
-            "factor_scores.parquet",
+            *factor_score_artifacts,
             "factor_metadata.csv",
             "factor_returns.parquet",
             "factor_predictions.parquet",
             "factor_model_metrics.csv",
             "factor_allocations.parquet",
             "portfolio_returns.parquet",
+            *([] if qspread_legs.empty else ["qspread_legs.parquet"]),
             "portfolio_summary.json",
             "report.md",
             "manifest.json",

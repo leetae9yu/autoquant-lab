@@ -1,5 +1,5 @@
 data:
-  start_date: "1925-01-01"
+  start_date: "1990-01-01"
   end_date: "2026-05-04"
   data_dir: "data"
 
@@ -61,6 +61,16 @@ ddqm2:
   holdout_fraction: 0.15
   min_observations: 24
   min_weight: 0.0
+  factor_universe: "all_implemented_current"
+  factor_universe_target_count: 13
+  factor_universe_overrides: []
+  macro_feature_design: "current_macro_family"
+  portfolio_surface: "weighted_factor_return_current"
+  evaluation_mode: "walk_forward"
+  walk_forward_test_periods: 12
+  walk_forward_validation_periods: 12
+  max_factor_score_rows: 30000000
+  factor_score_chunk_dates: 12
   output_dir: "experiments/ddqm2"
 
 budget:

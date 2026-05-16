@@ -3,7 +3,15 @@
 from .definitions import FactorDefinition, all_factor_definitions, implemented_factor_definitions
 from .scores import build_factor_scores
 from .returns import build_factor_long_short_returns
-from .ddqm2 import train_factor_return_models, build_factor_allocations, backtest_factor_allocations
+from .ddqm2 import (
+    backtest_factor_allocations,
+    backtest_stock_score_qspread,
+    build_factor_allocations,
+    macro_design_columns,
+    select_factor_universe,
+    train_factor_return_models,
+)
+from .ablation_plan import AblationPlan, AblationVariant, load_ablation_plan, planned_backlog, runnable_variants
 
 __all__ = [
     "FactorDefinition",
@@ -14,4 +22,12 @@ __all__ = [
     "train_factor_return_models",
     "build_factor_allocations",
     "backtest_factor_allocations",
+    "backtest_stock_score_qspread",
+    "macro_design_columns",
+    "select_factor_universe",
+    "AblationPlan",
+    "AblationVariant",
+    "load_ablation_plan",
+    "planned_backlog",
+    "runnable_variants",
 ]
