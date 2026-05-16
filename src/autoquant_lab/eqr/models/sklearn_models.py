@@ -28,11 +28,17 @@ class SklearnRegressorModel(EQRModel):
         merged = dict(self.default_params)
         merged.update(params)
         super().__init__(**merged)
+        self.usable_feature_names_: list[str] = []
         steps: list[tuple[str, Any]] = [("imputer", SimpleImputer(strategy="median"))]
         if self.scale_features:
             steps.append(("scaler", StandardScaler()))
         steps.append(("estimator", self.estimator_class(**merged)))
         self.pipeline = Pipeline(steps)
+
+    def _usable_frame(self, X: pd.DataFrame) -> pd.DataFrame:
+        if not self.usable_feature_names_:
+            return X
+        return X.loc[:, self.usable_feature_names_]
 
     def fit(
         self,
@@ -43,11 +49,17 @@ class SklearnRegressorModel(EQRModel):
     ) -> "SklearnRegressorModel":
         del periods
         self._remember_features(X)
-        self.pipeline.fit(X, np.asarray(y, dtype=float))
+        fit_X = X
+        if isinstance(X, pd.DataFrame):
+            usable_mask = np.asarray(X.notna().any(axis=0), dtype=bool)
+            self.usable_feature_names_ = [str(col) for col, has_value in zip(X.columns, usable_mask, strict=True) if has_value]
+            fit_X = self._usable_frame(X)
+        self.pipeline.fit(fit_X, np.asarray(y, dtype=float))
         return self
 
     def predict(self, X: pd.DataFrame | NDArray[np.float64]) -> NDArray[np.float64]:
-        return np.asarray(self.pipeline.predict(X), dtype=float)
+        predict_X = self._usable_frame(X) if isinstance(X, pd.DataFrame) else X
+        return np.asarray(self.pipeline.predict(predict_X), dtype=float)
 
 
 class RidgeModel(SklearnRegressorModel):

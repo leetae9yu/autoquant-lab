@@ -33,3 +33,15 @@ def test_naive_baselines_predict_expected_shapes() -> None:
         predictions = create_model(name).fit(X, y).predict(X)
         assert predictions.shape == (3,)
         assert np.isfinite(predictions).all()
+
+
+def test_sklearn_regressors_drop_all_null_training_features() -> None:
+    X = pd.DataFrame({"usable": [1.0, 2.0, 3.0, 4.0], "all_null": [np.nan, np.nan, np.nan, np.nan]})
+    y = pd.Series([0.01, 0.02, 0.03, 0.04])
+
+    model = create_model("ridge").fit(X, y)
+    predictions = model.predict(X)
+
+    assert predictions.shape == (4,)
+    assert np.isfinite(predictions).all()
+    assert getattr(model, "usable_feature_names_") == ["usable"]
