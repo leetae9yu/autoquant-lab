@@ -59,6 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=PROJECT_ROOT / "data", help="Local raw data directory.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Directory for prepared panel outputs.")
     parser.add_argument("--max-rows", type=int, default=0, help="Optional deterministic row cap for smoke-sized panel artifacts (0=all).")
+    parser.add_argument("--row-cap-mode", choices=("chronological", "date-balanced"), default="date-balanced", help="How --max-rows is applied: deterministic rows spread across all formation dates or earliest rows.")
     return parser.parse_args()
 
 
@@ -277,7 +278,12 @@ def _build_universe_chunked(
 def run_labels(args: argparse.Namespace) -> dict[str, Any]:
     config = load_simple_yaml(args.config)
     panel_config = config.get("panel", {}) if isinstance(config.get("panel", {}), dict) else {}
-    date_config = panel_config.get("date_range", {}) if isinstance(panel_config.get("date_range", {}), dict) else {}
+    data_config = config.get("data", {}) if isinstance(config.get("data", {}), dict) else {}
+    raw_date_config = panel_config.get("date_range", {}) if isinstance(panel_config.get("date_range", {}), dict) else {}
+    date_config = {
+        "start": raw_date_config.get("start", data_config.get("start_date")),
+        "end": raw_date_config.get("end", data_config.get("end_date")),
+    }
     horizons = tuple(panel_config.get("forward_horizons", [1, 3, 6]))
 
     resolved = resolve_data_paths(args.data_dir, include_date_ranges=False)
@@ -305,14 +311,14 @@ def run_labels(args: argparse.Namespace) -> dict[str, Any]:
     panel = universe.merge(labels, on=("permno", "formation_date"), how="left")
     panel["universe_source"] = "crsp_msf_active_names"
     panel["label_source"] = "crsp_msf_monthly_returns"
-    if args.max_rows > 0:
-        panel = panel.sort_values(["formation_date", "permno"]).head(args.max_rows).copy()
+    panel = _cap_panel_rows(panel, args.max_rows, args.row_cap_mode)
 
     validation = validate_labels(panel)
     validation["inputs"] = {
         "crsp_monthly": resolved["crsp_monthly"].to_dict(),
         "crsp_names": resolved["crsp_names"].to_dict(),
     }
+    validation["row_cap"] = {"max_rows": int(args.max_rows), "mode": args.row_cap_mode}
     validation["limitations"] = ["No daily-only labels were created.", "Delisting returns are not fabricated when unavailable in current monthly data."]
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -322,6 +328,56 @@ def run_labels(args: argparse.Namespace) -> dict[str, Any]:
     validation["output_panel"] = str(panel_path)
     validation_path.write_text(json.dumps(validation, indent=2, sort_keys=True, default=_json_default), encoding="utf-8")
     return {"panel_path": str(panel_path), "validation_path": str(validation_path), "rows": int(len(panel))}
+
+
+
+def _cap_panel_rows(panel: pd.DataFrame, max_rows: int, mode: str) -> pd.DataFrame:
+    """Apply a deterministic smoke cap without accidentally hiding later years."""
+
+    if max_rows <= 0 or len(panel) <= max_rows:
+        return panel.sort_values(["formation_date", "permno"]).reset_index(drop=True)
+    sorted_panel = panel.sort_values(["formation_date", "permno"]).reset_index(drop=True)
+    if mode == "chronological":
+        return sorted_panel.head(max_rows).copy()
+    if mode != "date-balanced":
+        raise ValueError(f"Unsupported row cap mode: {mode}")
+
+    dates = [date for date in sorted_panel["formation_date"].dropna().drop_duplicates().tolist()]
+    if not dates:
+        return sorted_panel.head(max_rows).copy()
+    by_date = {date: group for date, group in sorted_panel.groupby("formation_date", sort=True)}
+    selected_parts: list[pd.DataFrame] = []
+    selected_counts: dict[pd.Timestamp, int] = {}
+    base = max(1, max_rows // len(dates))
+    remaining = max_rows
+    for date in dates:
+        group = by_date[date]
+        take = min(len(group), base, remaining)
+        if take > 0:
+            selected_parts.append(group.head(take))
+        selected_counts[pd.Timestamp(date)] = take
+        remaining -= take
+        if remaining <= 0:
+            break
+
+    while remaining > 0:
+        progressed = False
+        for date in dates:
+            if remaining <= 0:
+                break
+            timestamp = pd.Timestamp(date)
+            group = by_date[date]
+            already = selected_counts.get(timestamp, 0)
+            if already >= len(group):
+                continue
+            selected_parts.append(group.iloc[[already]])
+            selected_counts[timestamp] = already + 1
+            remaining -= 1
+            progressed = True
+        if not progressed:
+            break
+
+    return pd.concat(selected_parts, ignore_index=True).sort_values(["formation_date", "permno"]).reset_index(drop=True)
 
 
 def _artifact_frame(resolved: dict[str, Any], artifact_name: str, columns: Sequence[str] | None = None) -> pd.DataFrame | None:
@@ -389,8 +445,7 @@ def run_features(args: argparse.Namespace) -> dict[str, Any]:
     if not panel_path.exists():
         raise FileNotFoundError(f"Monthly label panel is required before feature build: {panel_path}")
     panel = pd.read_parquet(panel_path)
-    if args.max_rows > 0:
-        panel = panel.sort_values(["formation_date", "permno"]).head(args.max_rows).copy()
+    panel = _cap_panel_rows(panel, args.max_rows, args.row_cap_mode)
 
     resolved = resolve_data_paths(args.data_dir, include_date_ranges=False)
     required_by_family = {
@@ -456,6 +511,7 @@ def run_features(args: argparse.Namespace) -> dict[str, Any]:
     payload = {
         "output_panel": str(feature_path),
         "rows": int(len(built_result.frame)),
+        "row_cap": {"max_rows": int(args.max_rows), "mode": args.row_cap_mode},
         "enabled_families": active_families,
         "skipped_families": missing_by_family,
         "feature_count": int(len(metadata)),
