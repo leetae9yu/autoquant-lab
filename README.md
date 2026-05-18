@@ -142,12 +142,20 @@ The current matrix completed:
 
 - one smoke run on a capped panel, and
 - six full-data LightGBM walk-forward OOS runs across q=0.10, q=0.20, and q=0.30.
+- CPU-friendly model sweeps covering LightGBM, ridge, elasticnet, random forest, extra trees, and baseline mean.
 
 Headline interpretation from the final report:
 
 - q=0.20 stock-score QSpread produced the highest cumulative return.
 - q=0.30 stock-score QSpread had the best mean/vol profile and lower turnover among the stock-score full runs.
 - q=0.10 remains the DDQM2-reference benchmark, not a forced default.
+
+Model-sweep interpretation:
+
+- On the 1.0M q=0.10 chunked sweep, LightGBM had the highest cumulative return, while ridge and elasticnet were close second-tier candidates with competitive drawdowns.
+- On the 1.25M q=0.10 fixed-holdout family, ridge and elasticnet outperformed LightGBM on cumulative return, so they should remain core follow-up models rather than mere baselines.
+- Random forest and extra trees improved on the baseline mean model but were weaker than LightGBM/ridge/elasticnet in the available sweeps.
+- The final headline matrix still uses the selected13 stock-score LightGBM setup because the model sweep used a different broader factor-return surface and evaluation setup.
 
 These are gross research backtest outputs. They do not include transaction costs, borrow costs, slippage, market impact, capacity limits, or final tradability review.
 

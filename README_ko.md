@@ -150,6 +150,13 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
 - q=0.30 stock-score QSpread는 stock-score full run 중 mean/vol profile과 turnover 측면에서 더 균형 잡힌 후보였습니다.
 - q=0.10은 DDQM2-reference benchmark이지 강제 default가 아닙니다.
 
+모델 sweep 해석은 다음과 같습니다.
+
+- 1.0M q=0.10 chunked sweep에서는 LightGBM이 가장 높은 cumulative return을 보였고, ridge와 elasticnet은 drawdown도 경쟁력 있는 2위권 후보였습니다.
+- 1.25M q=0.10 fixed-holdout 계열에서는 ridge와 elasticnet이 cumulative return 기준으로 LightGBM보다 높게 나왔기 때문에, 단순 baseline이 아니라 후속 핵심 비교 모델로 남겨야 합니다.
+- random forest와 extra trees는 baseline mean보다 낫지만, 현재 sweep에서는 LightGBM/ridge/elasticnet보다 약했습니다.
+- 최종 headline matrix는 여전히 selected13 stock-score LightGBM setup을 기준으로 둡니다. 모델 sweep은 더 넓은 factor-return surface와 다른 평가 설정에서 수행한 robustness/diagnostic evidence이기 때문입니다.
+
 모든 결과는 gross research backtest입니다. Transaction cost, borrow cost, slippage, market impact, capacity limit, final tradability review는 아직 반영하지 않았습니다.
 
 ## Verification
