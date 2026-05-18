@@ -60,6 +60,18 @@ The original DDQM/DDQM2 results and the autoquant-lab results should not be comp
 | Result interpretation | Dynamic rotation improves over static factor use inside the original setup | Factor-return regression improves the DDQM direction inside the original setup | Stock-score QSpread looked closer to DDQM2 final construction and produced stronger results than the factor-return surface |
 | Direct comparability | Internal comparison only | Internal comparison only | Not directly comparable by raw return level because market, data, period, costs, and universe differ |
 
+
+From a return perspective, the original DDQM and DDQM2 reports both argue that dynamic factor rotation improves over static style/factor portfolios. The table below places the original reported summary statistics next to the strongest U.S. adaptation candidates. It should still be read as context, not a direct contest: markets, universes, periods, cost assumptions, volatility definitions, and data vendors differ.
+
+| Strategy / experiment | Market / period | Portfolio construction | Reported return | Risk / turnover notes | Interpretation |
+|---|---|---|---:|---|---|
+| Original DDQM | Korea, early 2011-Aug 2022 | Top 20% long / bottom 20% short | +704% cumulative, 20.0% CAGR | Sharpe 1.4, MDD -22%, turnover 57% | Dynamic regime/factor rotation improved over static styles in the original setup |
+| Original DDQM2 | Korea, early 2011-Jun 2023 | Top 10% long / bottom 10% short | +1,357% cumulative, 23.9% CAGR | Sharpe 1.3, MDD -30%, turnover 65.1% | Factor-return regression improved the DDQM direction in the original setup |
+| autoquant q=0.20 stock-score | U.S. panel, Jan 1993-Nov 2024 | Top 20% long / bottom 20% short | cumulative return ratio 5202.0665, implied CAGR about 30.7% | monthly vol 5.73%, MDD -36.02%, turnover 71.93% | Aggressive return candidate, gross-only and not cost adjusted |
+| autoquant q=0.30 stock-score | U.S. panel, Jan 1993-Nov 2024 | Top 30% long / bottom 30% short | cumulative return ratio 4366.4377, implied CAGR about 30.0% | monthly vol 5.41%, MDD -35.71%, turnover 71.39% | More balanced candidate with lower volatility and turnover than q=0.20 |
+
+The useful comparison is directional: DDQM2 moved from discrete regime classification toward direct factor-return forecasting, and this U.S. adaptation also became much stronger when factor-return forecasts were translated into a stock-level QSpread surface. The claim is not that the U.S. run beat the Korean-market original, but that the same methodological chain, factor-return forecast to dynamic allocation to QSpread construction, produced a strong gross research signal in a different market.
+
 Three directional similarities were observed:
 
 1. Factor-return forecasting is easier to audit than direct stock-return prediction because labels, predictions, allocations, and portfolio returns can be separated.
@@ -169,9 +181,85 @@ Ridge and elasticnet should remain core follow-up models. Random forest and extr
 - The U.S. macro design is a proxy adaptation, not a one-to-one copy of the original DDQM2 macro variables.
 - Ridge/elasticnet have not yet been rerun under the final selected13 stock-score walk-forward matrix.
 - Annual/regime breakdown and statistical significance tests remain incomplete.
+- The interpretability appendix is aggregate-only and does not publish stock-level attribution.
 
 ## 8. Conclusion
 
 autoquant-lab shows that the DDQM2 idea can be expressed as a reproducible U.S. equity research harness: factor-return labels, CPU-friendly model forecasts, dynamic factor allocation, and stock-score QSpread portfolios. The strongest current interpretation is not that this is a finished strategy, but that the stock-score QSpread surface and q=0.20/q=0.30 settings are meaningful candidates for deeper robustness testing.
 
-The comparison with DDQM/DDQM2 should be read as a methodological comparison, not a direct return contest. The next step is to net transaction costs and slippage, test ridge/elasticnet under the same selected13 stock-score walk-forward setup, and run regime/year robustness checks.
+The comparison with DDQM/DDQM2 should be read as a methodological comparison, not a direct return contest. The existing-artifact interpretability appendix supports the same q=0.20 aggressive versus q=0.30 balanced reading, but it does not turn the gross backtest into a tradable strategy. The next step is to net transaction costs and slippage, test ridge/elasticnet under the same selected13 stock-score walk-forward setup, and run regime/year robustness checks.
+
+
+## 9. Existing-Artifact Interpretability Appendix
+
+This section uses only generated q=0.20 and q=0.30 stock-score QSpread artifacts that already existed on the server. No new WRDS login, new data download, or new model training was used. The supporting artifacts were `portfolio_returns.parquet`, `factor_allocations.parquet`, `factor_model_metrics.csv`, and `qspread_legs.parquet`. All summaries are aggregate-only; no stock-level rows or names are published.
+
+### 9.1 Aggregate q=0.20 versus q=0.30 profile
+
+| Item | q=0.20 stock-score | q=0.30 stock-score | Interpretation |
+|---|---:|---:|---|
+| OOS periods | 383 | 383 | Same Jan 1993-Nov 2024 window |
+| Mean monthly return | 0.0241 | 0.0235 | q=0.20 is slightly higher |
+| Monthly volatility | 0.0573 | 0.0541 | q=0.30 is lower |
+| Average turnover | 0.7193 | 0.7139 | q=0.30 is slightly lower |
+| Gross cost break-even per turnover | about 335.6 bps | about 329.5 bps | Simple cost stress reference, before borrow and impact |
+| Mean score gap | 1.3432 | 1.3044 | q=0.20 has slightly wider long/short score separation |
+| Score gap vs monthly return corr. | 0.005 | -0.008 | Simple score dispersion is not a useful timing signal |
+
+q=0.20 remains the aggressive return candidate. q=0.30 uses wider baskets and gives up a small amount of mean return in exchange for lower volatility and turnover. Both variants still require transaction cost, borrow, and liquidity testing because turnover is around 0.71.
+
+### 9.2 Annual strength and weakness
+
+| Run | Best years | Weakest years |
+|---|---|---|
+| q=0.20 stock-score | 2009 +106.73%, 2020 +100.71%, 2001 +76.17%, 2021 +64.93%, 1998 +63.89% | 2014 -4.48%, 2023 +1.49%, 2017 +2.60%, 2019 +4.67%, 2005 +10.81% |
+| q=0.30 stock-score | 2009 +101.88%, 2020 +83.26%, 2001 +81.73%, 1998 +67.03%, 2000 +64.98% | 2014 -11.98%, 2017 +2.37%, 2008 +4.41%, 2019 +7.19%, 2007 +7.49% |
+
+The weakest common year is 2014 rather than 2008. The strongest periods include 2009 and 2020, which suggests the strategy may have captured large factor dispersion around regime-transition and rebound windows rather than simply following calm bull markets.
+
+### 9.3 Worst-month attribution
+
+| Run | Month | Return | Turnover | Max factor weight | HHI |
+|---|---|---:|---:|---:|---:|
+| q=0.20 | 2000-01 | -28.70% | 0.672 | 0.158 | 0.114 |
+| q=0.20 | 1999-11 | -14.91% | 0.769 | 0.248 | 0.136 |
+| q=0.20 | 2020-02 | -10.77% | 0.729 | 0.173 | 0.105 |
+| q=0.20 | 2023-07 | -10.05% | 0.953 | 0.732 | 0.540 |
+| q=0.30 | 2000-01 | -25.82% | 0.655 | 0.168 | 0.121 |
+| q=0.30 | 1999-11 | -15.07% | 0.772 | 0.240 | 0.137 |
+| q=0.30 | 2020-02 | -10.44% | 0.547 | 0.160 | 0.101 |
+| q=0.30 | 2003-12 | -9.06% | 0.760 | 0.124 | 0.084 |
+
+January 2000 and November 1999 are the largest common loss months. July 2023 in q=0.20 is different: it combines a large loss with very high factor concentration, max factor weight 0.732 and HHI 0.540. That is a useful case for testing concentration caps or entropy regularization.
+
+### 9.4 Average factor allocation
+
+| Factor | q=0.20 mean weight | q=0.20 max | q=0.30 mean weight | q=0.30 max | Interpretation |
+|---|---:|---:|---:|---:|---|
+| `reversal_local_ma_gap_1m` | 0.132 | 0.373 | 0.123 | 0.373 | Local reversal axis |
+| `reversal_local_price_reversal_1m` | 0.132 | 0.373 | 0.123 | 0.373 | Local reversal axis; overlap audit needed |
+| `size_local_small_size` | 0.119 | 0.732 | 0.113 | 0.470 | Size/local alpha axis |
+| `quality_global_net_income_yoy` | 0.097 | 0.545 | 0.110 | 0.735 | Quality/profitability axis |
+| `val_global_pb_fwd` | 0.080 | 0.333 | 0.078 | 0.300 | Value axis |
+| `val_global_relative_pb_industry_fwd` | 0.080 | 0.333 | 0.078 | 0.300 | Industry-relative value axis |
+| `quality_local_net_income_yoy` | 0.078 | 0.504 | 0.090 | 0.409 | Local quality axis |
+| `earn_global_eps_fast_fy1_1m` | 0.048 | 0.136 | 0.049 | 0.137 | Earnings revision axis |
+
+The allocator leaned most heavily on local reversal, size, quality, and value. The two local reversal factors moved almost identically in average and max weight, which makes factor-overlap and duplicate-exposure review important before promoting the result.
+
+### 9.5 Long/short contribution and concentration
+
+| Item | q=0.20 | q=0.30 | Interpretation |
+|---|---:|---:|---|
+| Long leg mean forward return | 2.5955% | 2.5580% | Long basket selection is the main source of return |
+| Short leg mean forward return | 0.1821% | 0.2067% | The short basket also had positive average forward return |
+| Long-short forward spread | 2.41% | 2.35% | Close to the monthly portfolio return |
+| High concentration months mean return | 2.47% | 1.22% | Higher factor concentration did not improve returns |
+| Low concentration months mean return | 3.01% | 2.28% | More diversified months had higher average returns |
+| Avg weight vs holdout correlation corr. | -0.247 | -0.298 | Heavily weighted factors were not necessarily the factors with higher holdout correlation |
+
+The strategy appears to be driven more by long-side selection than by successful short-side collapse. Concentration also looks like a risk rather than a benefit in these aggregates. Follow-up work should test factor caps, entropy penalties, and removal or merging of duplicate reversal signals.
+
+### 9.6 Author interpretation note
+
+The strongest message is not that a single model produced a large return number. The stronger research point is that the DDQM2 chain, factor-return forecasting to dynamic allocation to stock-level QSpread construction, produced an interpretable gross alpha structure in U.S. data. The result should remain a research signal until it survives cost, liquidity, borrow, and capacity tests.

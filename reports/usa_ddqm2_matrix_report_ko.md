@@ -65,6 +65,18 @@ DDQM2는 개별 종목의 미래 수익률을 직접 예측하기보다, 시장/
 | 원문 결과 해석 | 정적 factor보다 동적 factor rotation이 유리하다는 방향 | DDQM 대비 factor-return regression 방식으로 개선된 방향 | stock-score QSpread surface가 factor-return surface보다 DDQM2 최종 portfolio construction에 더 가까웠고 강한 결과를 보임 |
 | 직접 비교 가능성 | 원문 내부 비교 | 원문 내부 비교 | 시장/데이터/기간/거래조건이 달라 원문 수익률과 직접 숫자 비교 불가 |
 
+
+수익률 관점에서는 원문 DDQM과 DDQM2 모두 정적 style/factor 전략보다 동적 factor rotation이 유리하다는 결론을 제시한다. 아래 표는 원문 보고서에 제시된 요약 수치와 본 프로젝트의 U.S. adaptation 후보를 같은 자리에 놓은 것이다. 단, 원문은 한국시장/KOSPI200 계열, 본 프로젝트는 U.S. monthly equity panel이며, volatility 산식과 거래비용/borrow/capacity 조건도 다르다. 따라서 이 표는 “성과 레벨의 직접 대결”이 아니라, 동적 factor allocation/QSpread 구조가 각자의 실험 환경에서 어느 정도의 gross return profile을 만들었는지 보는 참고표다.
+
+| 전략/실험 | 시장/기간 | Portfolio construction | Reported return | Risk/turnover notes | 비교 해석 |
+|---|---|---|---:|---|---|
+| DDQM 원문 | 한국시장, 2011년초-2022년 8월말 | 상위 20% long / 하위 20% short | 누적 +704%, CAGR 20.0% | Sharpe 1.4, MDD -22%, 회전율 57% | 정적 style 대비 동적 regime/factor rotation 개선 |
+| DDQM2 원문 | 한국시장, 2011년초-2023년 6월말 | 상위 10% long / 하위 10% short | 누적 +1,357%, CAGR 23.9% | Sharpe 1.3, MDD -30%, 회전율 65.1% | DDQM 대비 factor-return regression 방식으로 개선 |
+| autoquant q=0.20 stock-score | U.S. panel, 1993-01-2024-11 | 상위 20% long / 하위 20% short | cumulative return ratio 5202.0665, implied CAGR 약 30.7% | monthly vol 5.73%, MDD -36.02%, turnover 71.93% | aggressive return candidate. 단, gross-only이며 비용/유동성 미반영 |
+| autoquant q=0.30 stock-score | U.S. panel, 1993-01-2024-11 | 상위 30% long / 하위 30% short | cumulative return ratio 4366.4377, implied CAGR 약 30.0% | monthly vol 5.41%, MDD -35.71%, turnover 71.39% | balanced practical candidate. q=0.20 대비 수익은 낮지만 변동성/turnover가 낮음 |
+
+이 비교에서 흥미로운 점은, 원문 DDQM2가 DDQM보다 더 연속적인 factor-return forecast 구조로 개선된 것처럼, 본 U.S. adaptation에서도 factor-return prediction을 stock-level score QSpread로 연결했을 때 단순 factor-return surface보다 훨씬 강한 결과가 나왔다는 점이다. 반대로 말하면, 본 결과의 핵심은 “미국 데이터에서 원문 수익률을 이겼다”가 아니라, **DDQM2의 방법론적 방향인 factor-return forecast → dynamic allocation → QSpread portfolio construction이 다른 시장에서도 강한 gross research signal을 만들었다**는 것이다.
+
 본 실험에서 원문과 같은 방향으로 확인된 부분은 세 가지다.
 
 1. **개별 종목 수익률 직접 예측보다 factor-return forecast를 중심에 둔 구조가 실험적으로 관리하기 쉬웠다.** Factor별 label, prediction, allocation, portfolio return이 분리되어 manifest 기반 검증이 가능했다.
@@ -333,6 +345,7 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
 - DDQM2 25x3 macro design은 U.S. proxy adaptation이며 원문과 일대일 대응이 아님
 - ridge/elasticnet 모델 sweep은 유망하지만 최종 selected13 stock-score matrix와 동일 조건으로 아직 재실행하지 않음
 - regime/year breakdown과 statistical significance 검증이 부족함
+- 해석가능성 부록은 aggregate artifact만 사용하며, 개별 종목 attribution이나 stock-level publication을 포함하지 않음
 
 따라서 본 프로젝트는 “수익 전략 발견”이라기보다 “DDQM2 방법론의 U.S. adaptation을 위한 자동실험 하네스와 초기 OOS 결과”로 해석하는 것이 적절하다.
 
@@ -340,11 +353,86 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
 
 autoquant-lab은 DDQM2의 핵심 아이디어를 미국 주식시장 데이터에 맞게 재구성한 offline CPU-only research harness이다. 최종 구현은 selected 13-factor universe, DDQM2-style macro design, CPU-friendly factor-return forecasting, dynamic factor allocation, stock-level QSpread, walk-forward OOS matrix를 포함한다.
 
-실험 결과는 stock-score QSpread surface가 기존 factor-return surface보다 DDQM2에 더 가까우며, q=0.20과 q=0.30이 U.S. adaptation 후보로 유의미하다는 것을 보여준다. 특히 q=0.30 stock-score QSpread는 cumulative return은 q=0.20보다 낮지만, mean/vol, turnover, drawdown 측면에서 더 균형 잡힌 후보로 해석된다. 모델 관점에서는 LightGBM이 최종 matrix의 중심이지만, ridge/elasticnet 결과가 충분히 강해 후속 matrix의 핵심 비교군으로 남겨야 한다.
+실험 결과는 stock-score QSpread surface가 기존 factor-return surface보다 DDQM2에 더 가까우며, q=0.20과 q=0.30이 U.S. adaptation 후보로 유의미하다는 것을 보여준다. 특히 q=0.30 stock-score QSpread는 cumulative return은 q=0.20보다 낮지만, mean/vol, turnover, drawdown 측면에서 더 균형 잡힌 후보로 해석된다. 기존 서버 artifact만 이용한 해석가능성 부록에서도 q=0.20은 aggressive return, q=0.30은 balanced practical profile이라는 해석이 유지되었다. 모델 관점에서는 LightGBM이 최종 matrix의 중심이지만, ridge/elasticnet 결과가 충분히 강해 후속 matrix의 핵심 비교군으로 남겨야 한다.
 
 동시에 이 프로젝트는 AI agent를 연구 하네스 개발에 활용할 때의 한계도 보여준다. AI는 코드 작성, 실험 실행, 결과 parsing, 보고서 작성에 유용했지만, 탐색 공간을 제한하지 않으면 data-mining artifact를 강화할 수 있다. 또한 AI가 실험 장치 자체를 바꾸기 때문에, 최종 성과를 모델 성능과 harness engineering 효과로 분해하기 어렵다. 따라서 AI-assisted quant research에서는 자동화보다 더 중요한 것이 실험 경계 설정, attribution 관리, 그리고 해석 가능한 검증 기준이다.
 
-## 12. 다음 과제
+
+## 12. 기존 artifact 기반 해석가능성 부록
+
+이 절은 새 WRDS 로그인, 새 데이터 다운로드, 새 학습 없이 서버에 이미 생성되어 있던 q=0.20/q=0.30 stock-score QSpread artifact만 읽어 aggregate로 계산한 해석이다. 사용한 artifact는 `portfolio_returns.parquet`, `factor_allocations.parquet`, `factor_model_metrics.csv`, `qspread_legs.parquet`이며, 개별 종목명이나 stock-level row는 공개하지 않는다.
+
+### 12.1 q=0.20과 q=0.30의 aggregate profile
+
+| 항목 | q=0.20 stock-score | q=0.30 stock-score | 해석 |
+|---|---:|---:|---|
+| OOS periods | 383 | 383 | 1993-01부터 2024-11까지 동일 구간 |
+| Mean monthly return | 0.0241 | 0.0235 | q=0.20이 소폭 높음 |
+| Monthly volatility | 0.0573 | 0.0541 | q=0.30이 더 낮음 |
+| Average turnover | 0.7193 | 0.7139 | q=0.30이 소폭 낮음 |
+| Gross cost break-even per turnover | 약 335.6 bps | 약 329.5 bps | 단순 비용 stress 참고치. borrow/impact 미반영 |
+| Score gap mean | 1.3432 | 1.3044 | q=0.20이 long/short score 분리가 소폭 큼 |
+| Score gap vs monthly return corr. | 0.005 | -0.008 | 단순 score gap은 timing signal로 거의 작동하지 않음 |
+
+q=0.20은 더 공격적인 성과 후보이고, q=0.30은 더 넓은 basket을 사용해 volatility와 turnover를 낮춘 후보로 해석된다. 두 설정 모두 turnover가 0.71 수준이므로, gross return이 강하더라도 transaction cost, borrow, market impact 검증이 필수다.
+
+### 12.2 연도별 강세/약세 구간
+
+| Run | Best years | Weakest years |
+|---|---|---|
+| q=0.20 stock-score | 2009 +106.73%, 2020 +100.71%, 2001 +76.17%, 2021 +64.93%, 1998 +63.89% | 2014 -4.48%, 2023 +1.49%, 2017 +2.60%, 2019 +4.67%, 2005 +10.81% |
+| q=0.30 stock-score | 2009 +101.88%, 2020 +83.26%, 2001 +81.73%, 1998 +67.03%, 2000 +64.98% | 2014 -11.98%, 2017 +2.37%, 2008 +4.41%, 2019 +7.19%, 2007 +7.49% |
+
+가장 흥미로운 부분은 2008년이 최악의 해로 나오지 않는다는 점이다. 오히려 공통적인 약세 구간은 2014년이며, 2009년과 2020년처럼 급격한 regime transition 이후의 rebound 구간에서 강하게 나타났다. 이는 전략이 평온한 bull market보다는 factor dispersion이 커지는 전환 국면에서 더 많은 gross alpha를 얻었을 가능성을 시사한다.
+
+### 12.3 Worst-month attribution
+
+| Run | Month | Return | Turnover | Max factor weight | HHI |
+|---|---|---:|---:|---:|---:|
+| q=0.20 | 2000-01 | -28.70% | 0.672 | 0.158 | 0.114 |
+| q=0.20 | 1999-11 | -14.91% | 0.769 | 0.248 | 0.136 |
+| q=0.20 | 2020-02 | -10.77% | 0.729 | 0.173 | 0.105 |
+| q=0.20 | 2023-07 | -10.05% | 0.953 | 0.732 | 0.540 |
+| q=0.30 | 2000-01 | -25.82% | 0.655 | 0.168 | 0.121 |
+| q=0.30 | 1999-11 | -15.07% | 0.772 | 0.240 | 0.137 |
+| q=0.30 | 2020-02 | -10.44% | 0.547 | 0.160 | 0.101 |
+| q=0.30 | 2003-12 | -9.06% | 0.760 | 0.124 | 0.084 |
+
+2000년 1월과 1999년 11월은 두 q 설정에서 공통적으로 가장 큰 손실 구간이다. q=0.20의 2023년 7월은 max factor weight 0.732, HHI 0.540으로 concentration이 매우 높았던 달이어서, concentration cap 또는 entropy regularization의 필요성을 보여주는 사례다.
+
+### 12.4 평균 factor allocation
+
+| Factor | q=0.20 mean weight | q=0.20 max | q=0.30 mean weight | q=0.30 max | 해석 |
+|---|---:|---:|---:|---:|---|
+| `reversal_local_ma_gap_1m` | 0.132 | 0.373 | 0.123 | 0.373 | local reversal 축 |
+| `reversal_local_price_reversal_1m` | 0.132 | 0.373 | 0.123 | 0.373 | local reversal 축. 위 factor와 중복성 점검 필요 |
+| `size_local_small_size` | 0.119 | 0.732 | 0.113 | 0.470 | size/local alpha 축 |
+| `quality_global_net_income_yoy` | 0.097 | 0.545 | 0.110 | 0.735 | quality/profitability 축 |
+| `val_global_pb_fwd` | 0.080 | 0.333 | 0.078 | 0.300 | value 축 |
+| `val_global_relative_pb_industry_fwd` | 0.080 | 0.333 | 0.078 | 0.300 | industry-relative value 축 |
+| `quality_local_net_income_yoy` | 0.078 | 0.504 | 0.090 | 0.409 | local quality 축 |
+| `earn_global_eps_fast_fy1_1m` | 0.048 | 0.136 | 0.049 | 0.137 | earnings revision 축 |
+
+평균 allocation은 local reversal, size, quality, value에 많이 배분되었다. 특히 `reversal_local_ma_gap_1m`와 `reversal_local_price_reversal_1m`는 평균/최대 weight가 거의 동일하게 움직여 경제적 중복 가능성이 있다. 반면 DDQM2 원문에서 강조된 earnings momentum 계열은 본 U.S. adaptation에서도 포함되지만, 평균 weight 상위권에서는 reversal/size/quality/value가 더 두드러졌다.
+
+### 12.5 Long/short 기여와 concentration 효과
+
+| 항목 | q=0.20 | q=0.30 | 해석 |
+|---|---:|---:|---|
+| Long leg 평균 forward return | 2.5955% | 2.5580% | long basket 선별력이 성과의 핵심 |
+| Short leg 평균 forward return | 0.1821% | 0.2067% | short basket도 평균적으로 양수였음 |
+| Long-short forward spread | 2.41% | 2.35% | 전체 월평균 return과 거의 일치 |
+| High concentration months 평균 return | 2.47% | 1.22% | factor weight가 몰릴수록 성과가 개선되지는 않음 |
+| Low concentration months 평균 return | 3.01% | 2.28% | 더 분산된 달의 평균 성과가 높았음 |
+| Avg weight vs holdout correlation corr. | -0.247 | -0.298 | 많이 쓰인 factor가 반드시 holdout correlation이 높았던 것은 아님 |
+
+이 결과는 전략의 성과가 “숏이 크게 망한 종목을 맞혀서”라기보다 long basket의 평균적인 상대 우위에서 나왔음을 시사한다. 또한 factor concentration이 높아질수록 성과가 더 좋아지는 구조가 아니었기 때문에, 후속 실험에서는 factor weight cap, entropy penalty, duplicate reversal factor 제거를 테스트할 가치가 있다.
+
+### 12.6 저자 해석 메모
+
+현재 결과만 놓고 보면, 이 프로젝트의 가장 강한 메시지는 “특정 모델이 수익률 숫자를 크게 만들었다”가 아니라, **DDQM2식 factor-return forecast를 stock-level QSpread로 연결했을 때 U.S. 데이터에서도 해석 가능한 gross alpha 구조가 나타났다**는 점이다. 다만 gross alpha의 상당 부분은 높은 turnover와 long-side selection에 기대고 있으므로, 비용/유동성/차입 가능성 검증을 통과하기 전까지는 실전 전략이 아니라 research signal로 두는 것이 맞다.
+
+## 13. 다음 과제
 
 1. Transaction cost 및 turnover stress test
 2. Liquidity/microcap filter sensitivity
