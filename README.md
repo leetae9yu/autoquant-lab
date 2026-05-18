@@ -37,9 +37,10 @@ Quantile `q` is intentionally left as a research axis:
 - q=0.10 is the DDQM2-reference decile construction.
 - q=0.20 and q=0.30 are U.S. adaptation settings for wider, more diversified legs.
 
-See the final matrix report:
+See the final matrix reports:
 
-- [`reports/usa_ddqm2_matrix_report.md`](reports/usa_ddqm2_matrix_report.md)
+- [Korean report](reports/usa_ddqm2_matrix_report_ko.md)
+- [English report](reports/usa_ddqm2_matrix_report_en.md)
 
 ## Walk-forward timing and rebalancing
 

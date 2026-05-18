@@ -39,7 +39,8 @@ Quantile `q`는 고정 default가 아니라 연구 축으로 둡니다.
 
 최종 matrix report:
 
-- [`reports/usa_ddqm2_matrix_report.md`](reports/usa_ddqm2_matrix_report.md)
+- [한국어 리포트](reports/usa_ddqm2_matrix_report_ko.md)
+- [English report](reports/usa_ddqm2_matrix_report_en.md)
 
 ## Walk-forward timing과 리밸런싱
 
