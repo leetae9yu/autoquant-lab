@@ -41,6 +41,37 @@ See the final matrix report:
 
 - [`reports/usa_ddqm2_matrix_report.md`](reports/usa_ddqm2_matrix_report.md)
 
+## Walk-forward timing and rebalancing
+
+The portfolio surface is monthly. Each `formation_date` represents one monthly rebalance date, and labels use `ret_1m_fwd`, the next-month forward return.
+
+In the default full-run configuration:
+
+- portfolio weights are recomputed every month;
+- the long/short stock baskets are rebuilt every month;
+- each monthly portfolio is evaluated on the next one-month return;
+- the forecasting model is refit once per 12-month walk-forward test fold.
+
+For example, if a fold tests `2023-01` through `2023-12`, the model is fit only on dates before that test block, with the immediately preceding validation block kept out of training. It does **not** train on 2023 labels and then predict 2023.
+
+The default setup is therefore:
+
+```text
+monthly portfolio rebalance
++ 1-month holding horizon
++ 12-month model refit cadence
+```
+
+For a stricter monthly-refit experiment, set the test fold to one month:
+
+```bash
+PYTHONPATH=src:. python scripts/eqr_run_ddqm2.py \
+  --config configs/server_full.yaml \
+  --evaluation-mode walk_forward \
+  --walk-forward-test-periods 1 \
+  --walk-forward-validation-periods 0
+```
+
 ## Repository layout
 
 ```text
@@ -95,6 +126,7 @@ PYTHONPATH=src:. python scripts/eqr_run_ddqm2.py \
   --factor-universe selected_13_global_local \
   --macro-feature-design ddqm2_25x3_us_macro \
   --portfolio-surface stock_score_qspread_ddqm2 \
+  --evaluation-mode walk_forward \
   --min-weight 0.03
 ```
 
