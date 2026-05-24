@@ -44,8 +44,9 @@ See the final DDQM2 matrix reports:
 
 Latest additive long-only QSpread analysis:
 
-- [English analysis report](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md)
-- [Korean translation](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
+- [English v2 analysis report](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_en.md)
+- [Korean v2 translation](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md)
+- Prior v1 reports: [English](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [Korean](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
 - [Reproducibility ledger](reports/long_only_qspread_ml_costs_full_chunked_ledger.json)
 
 ## Walk-forward timing and rebalancing
@@ -167,9 +168,9 @@ The repository now has two source-controlled report families:
    - 18 successful runs: six model families across q=0.10, q=0.20, and q=0.30.
    - Long-only top-q equal-weight fully invested construction; no new short optimization.
    - Conservative primary net lens: 50 bps one-way turnover cost and a 40.8% simplified tax-drag proxy on positive monthly gains realized by turnover.
-   - Reports: [`long_only_qspread_ml_costs_full_chunked_analysis_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md).
+   - Reports: [`long_only_qspread_ml_costs_full_chunked_analysis_v2_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md). Prior v1 reports remain available as [`long_only_qspread_ml_costs_full_chunked_analysis_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md) and [`long_only_qspread_ml_costs_full_chunked_analysis_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md).
 
-Headline interpretation from the latest long-only report:
+Headline interpretation from the latest long-only v2 report:
 
 - q=0.30 is the strongest net-cost surface for every tested model family.
 - The baseline-mean q=0.30 run has the highest primary net cumulative return, mostly because the conservative net lens strongly rewards lower turnover and stable factor exposure.

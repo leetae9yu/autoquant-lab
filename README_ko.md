@@ -44,8 +44,9 @@ Quantile `q`는 고정 default가 아니라 연구 축으로 둡니다.
 
 최신 additive long-only QSpread 분석:
 
-- [English analysis report](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md)
-- [한국어 번역본](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
+- [English v2 analysis report](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_en.md)
+- [한국어 v2 번역본](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md)
+- 기존 v1 리포트: [English](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [한국어](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
 - [Reproducibility ledger](reports/long_only_qspread_ml_costs_full_chunked_ledger.json)
 
 ## Walk-forward timing과 리밸런싱
@@ -167,9 +168,9 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
    - 18개 run 성공: 여섯 model family × q=0.10, q=0.20, q=0.30.
    - Long-only top-q equal-weight fully invested construction이며, 신규 short optimization은 하지 않았습니다.
    - 보수적 primary net lens: one-way turnover cost 50 bps, positive monthly gain × turnover × 40.8% 단순 tax-drag proxy.
-   - Reports: [`long_only_qspread_ml_costs_full_chunked_analysis_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md).
+   - Reports: [`long_only_qspread_ml_costs_full_chunked_analysis_v2_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md). 기존 v1 리포트도 [`long_only_qspread_ml_costs_full_chunked_analysis_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)에 보존합니다.
 
-최신 long-only report의 headline 해석은 다음과 같습니다.
+최신 long-only v2 report의 headline 해석은 다음과 같습니다.
 
 - q=0.30은 테스트한 모든 model family에서 net-cost 기준 가장 강한 surface입니다.
 - baseline-mean q=0.30 run이 primary net cumulative return 기준 1위인데, 이는 보수적 net lens가 낮은 turnover와 안정적인 factor exposure를 강하게 보상하기 때문으로 해석해야 합니다.
