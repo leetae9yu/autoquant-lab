@@ -37,10 +37,16 @@ Quantile `q` is intentionally left as a research axis:
 - q=0.10 is the DDQM2-reference decile construction.
 - q=0.20 and q=0.30 are U.S. adaptation settings for wider, more diversified legs.
 
-See the final matrix reports:
+See the final DDQM2 matrix reports:
 
 - [Korean report](reports/usa_ddqm2_matrix_report_ko.md)
 - [English report](reports/usa_ddqm2_matrix_report_en.md)
+
+Latest additive long-only QSpread analysis:
+
+- [English analysis report](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md)
+- [Korean translation](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
+- [Reproducibility ledger](reports/long_only_qspread_ml_costs_full_chunked_ledger.json)
 
 ## Walk-forward timing and rebalancing
 
@@ -131,6 +137,17 @@ PYTHONPATH=src:. python scripts/eqr_run_ddqm2.py \
   --min-weight 0.03
 ```
 
+Run the additive long-only QSpread matrix from already-prepared local chunked artifacts:
+
+```bash
+PYTHONPATH=src:. python scripts/eqr_run_long_only_matrix.py \
+  --feature-dir experiments/prepared/features_full_chunked \
+  --run-prefix longonly_full_chunked_YYYYMMDD \
+  --output-dir experiments/ddqm2_long_only_full_chunked \
+  --report reports/long_only_qspread_ml_costs_full_chunked_report.md \
+  --ledger reports/long_only_qspread_ml_costs_full_chunked_ledger.json
+```
+
 Run focused tests:
 
 ```bash
@@ -139,37 +156,42 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
 
 ## Research status
 
-The current matrix completed:
+The repository now has two source-controlled report families:
 
-- one smoke run on a capped panel, and
-- six full-panel LightGBM walk-forward OOS runs across q=0.10, q=0.20, and q=0.30 on the 1.25M date-balanced prepared panel.
-- CPU-friendly model sweeps covering LightGBM, ridge, elasticnet, random forest, extra trees, and baseline mean.
+1. **Existing USA-DDQM2 long/short matrix**
+   - q=0.10, q=0.20, and q=0.30 DDQM2-style stock-score QSpread runs.
+   - Model sweeps covering LightGBM, ridge, elasticnet, random forest, extra trees, and baseline mean.
+   - Reports: [`usa_ddqm2_matrix_report_en.md`](reports/usa_ddqm2_matrix_report_en.md), [`usa_ddqm2_matrix_report_ko.md`](reports/usa_ddqm2_matrix_report_ko.md).
+2. **Additive long-only QSpread cost/tax matrix**
+   - Full local chunked panel: 2,082,485 rows, 159 features, 35 feature partitions.
+   - 18 successful runs: six model families across q=0.10, q=0.20, and q=0.30.
+   - Long-only top-q equal-weight fully invested construction; no new short optimization.
+   - Conservative primary net lens: 50 bps one-way turnover cost and a 40.8% simplified tax-drag proxy on positive monthly gains realized by turnover.
+   - Reports: [`long_only_qspread_ml_costs_full_chunked_analysis_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md).
 
-Headline interpretation from the final report:
+Headline interpretation from the latest long-only report:
 
-- q=0.20 stock-score QSpread produced the highest cumulative return.
-- q=0.30 stock-score QSpread had the best mean/vol profile and lower turnover among the stock-score full runs.
-- q=0.10 remains the DDQM2-reference benchmark, not a forced default.
+- q=0.30 is the strongest net-cost surface for every tested model family.
+- The baseline-mean q=0.30 run has the highest primary net cumulative return, mostly because the conservative net lens strongly rewards lower turnover and stable factor exposure.
+- Extra Trees and Random Forest are the strongest non-baseline ML runs at q=0.30; LightGBM has strong gross performance but higher turnover drag.
+- The key research result is the gap between gross and conservative net outcomes, not the gross headline alone.
 
-Model-sweep interpretation:
-
-- On the 1.0M q=0.10 chunked sweep, LightGBM had the highest cumulative return, while ridge and elasticnet were close second-tier candidates with competitive drawdowns.
-- On the 1.25M-row date-balanced prepared panel, ridge and elasticnet outperformed LightGBM on cumulative return in the q=0.10 fixed-holdout family, so they should remain core follow-up models rather than mere baselines.
-- Random forest and extra trees improved on the baseline mean model but were weaker than LightGBM/ridge/elasticnet in the available sweeps.
-- The final headline matrix still uses the selected13 stock-score LightGBM setup because the model sweep used a different broader factor-return surface and evaluation setup.
-
-These are gross research backtest outputs. They do not include transaction costs, borrow costs, slippage, market impact, capacity limits, or final tradability review.
+These are research backtests. They do not fully model slippage, market impact, capacity, tax-lot accounting, borrow constraints, or production tradability. The tax proxy is not tax advice.
 
 ## Verification
 
-Recent focused checks used during the DDQM2-USA implementation:
+Recent checks used during the long-only QSpread completion:
 
 ```text
-PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_factors.py -q
-16 passed
+PYTHONPATH=src:. .venv/bin/python -m pytest -q
+153 passed, 54 warnings
+
+Full long-only matrix
+18 runs, 0 failures
+Data boundary: local artifacts only; no WRDS login; no runtime external data
 ```
 
-The runner also uses chunked factor-score generation to avoid rematerializing very large score tables during full-data runs.
+The runner uses partitioned feature preparation and chunked factor-score generation to avoid rematerializing very large score tables during full-data runs.
 
 ## Safety and publication policy
 

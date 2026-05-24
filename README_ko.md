@@ -37,10 +37,16 @@ Quantile `q`는 고정 default가 아니라 연구 축으로 둡니다.
 - q=0.10은 DDQM2-reference decile construction입니다.
 - q=0.20과 q=0.30은 더 넓고 분산된 leg를 보기 위한 U.S. adaptation 설정입니다.
 
-최종 matrix report:
+최종 DDQM2 matrix report:
 
 - [한국어 리포트](reports/usa_ddqm2_matrix_report_ko.md)
 - [English report](reports/usa_ddqm2_matrix_report_en.md)
+
+최신 additive long-only QSpread 분석:
+
+- [English analysis report](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md)
+- [한국어 번역본](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
+- [Reproducibility ledger](reports/long_only_qspread_ml_costs_full_chunked_ledger.json)
 
 ## Walk-forward timing과 리밸런싱
 
@@ -131,6 +137,17 @@ PYTHONPATH=src:. python scripts/eqr_run_ddqm2.py \
   --min-weight 0.03
 ```
 
+이미 준비된 로컬 chunked artifact에서 additive long-only QSpread matrix를 실행합니다.
+
+```bash
+PYTHONPATH=src:. python scripts/eqr_run_long_only_matrix.py \
+  --feature-dir experiments/prepared/features_full_chunked \
+  --run-prefix longonly_full_chunked_YYYYMMDD \
+  --output-dir experiments/ddqm2_long_only_full_chunked \
+  --report reports/long_only_qspread_ml_costs_full_chunked_report.md \
+  --ledger reports/long_only_qspread_ml_costs_full_chunked_ledger.json
+```
+
 Focused test:
 
 ```bash
@@ -139,37 +156,42 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
 
 ## Research status
 
-현재 matrix는 다음을 완료했습니다.
+현재 저장소에는 두 계열의 source-controlled report가 있습니다.
 
-- capped panel smoke run 1개
-- q=0.10, q=0.20, q=0.30에 대한 1.25M-row date-balanced prepared panel 기반 LightGBM walk-forward OOS run 6개
-- LightGBM, ridge, elasticnet, random forest, extra trees, baseline mean 등 CPU-friendly model 비교
+1. **기존 USA-DDQM2 long/short matrix**
+   - q=0.10, q=0.20, q=0.30 DDQM2-style stock-score QSpread run.
+   - LightGBM, ridge, elasticnet, random forest, extra trees, baseline mean 모델 sweep.
+   - Reports: [`usa_ddqm2_matrix_report_en.md`](reports/usa_ddqm2_matrix_report_en.md), [`usa_ddqm2_matrix_report_ko.md`](reports/usa_ddqm2_matrix_report_ko.md).
+2. **Additive long-only QSpread cost/tax matrix**
+   - Full local chunked panel: 2,082,485 rows, 159 features, 35 feature partitions.
+   - 18개 run 성공: 여섯 model family × q=0.10, q=0.20, q=0.30.
+   - Long-only top-q equal-weight fully invested construction이며, 신규 short optimization은 하지 않았습니다.
+   - 보수적 primary net lens: one-way turnover cost 50 bps, positive monthly gain × turnover × 40.8% 단순 tax-drag proxy.
+   - Reports: [`long_only_qspread_ml_costs_full_chunked_analysis_en.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [`long_only_qspread_ml_costs_full_chunked_analysis_ko.md`](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md).
 
-최종 report의 headline 해석은 다음과 같습니다.
+최신 long-only report의 headline 해석은 다음과 같습니다.
 
-- q=0.20 stock-score QSpread가 가장 높은 cumulative return을 보였습니다.
-- q=0.30 stock-score QSpread는 stock-score full run 중 mean/vol profile과 turnover 측면에서 더 균형 잡힌 후보였습니다.
-- q=0.10은 DDQM2-reference benchmark이지 강제 default가 아닙니다.
+- q=0.30은 테스트한 모든 model family에서 net-cost 기준 가장 강한 surface입니다.
+- baseline-mean q=0.30 run이 primary net cumulative return 기준 1위인데, 이는 보수적 net lens가 낮은 turnover와 안정적인 factor exposure를 강하게 보상하기 때문으로 해석해야 합니다.
+- Extra Trees와 Random Forest는 q=0.30에서 baseline을 제외한 가장 강한 ML run이고, LightGBM은 gross 성과가 강하지만 turnover drag도 큽니다.
+- 핵심 연구 결과는 gross headline 자체가 아니라 gross와 conservative net outcome 사이의 차이입니다.
 
-모델 sweep 해석은 다음과 같습니다.
-
-- 1.0M q=0.10 chunked sweep에서는 LightGBM이 가장 높은 cumulative return을 보였고, ridge와 elasticnet은 drawdown도 경쟁력 있는 2위권 후보였습니다.
-- 1.25M-row date-balanced prepared panel의 q=0.10 fixed-holdout 계열에서는 ridge와 elasticnet이 cumulative return 기준으로 LightGBM보다 높게 나왔기 때문에, 단순 baseline이 아니라 후속 핵심 비교 모델로 남겨야 합니다.
-- random forest와 extra trees는 baseline mean보다 낫지만, 현재 sweep에서는 LightGBM/ridge/elasticnet보다 약했습니다.
-- 최종 headline matrix는 여전히 selected13 stock-score LightGBM setup을 기준으로 둡니다. 모델 sweep은 더 넓은 factor-return surface와 다른 평가 설정에서 수행한 robustness/diagnostic evidence이기 때문입니다.
-
-모든 결과는 gross research backtest입니다. Transaction cost, borrow cost, slippage, market impact, capacity limit, final tradability review는 아직 반영하지 않았습니다.
+모든 결과는 research backtest입니다. Slippage, market impact, capacity, tax-lot accounting, borrow constraints, production tradability는 완전히 모델링하지 않았습니다. Tax proxy는 세무 조언이 아닙니다.
 
 ## Verification
 
-DDQM2-USA 구현 과정에서 사용한 focused check:
+Long-only QSpread completion에서 사용한 최근 검증:
 
 ```text
-PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_factors.py -q
-16 passed
+PYTHONPATH=src:. .venv/bin/python -m pytest -q
+153 passed, 54 warnings
+
+Full long-only matrix
+18 runs, 0 failures
+Data boundary: local artifacts only; no WRDS login; no runtime external data
 ```
 
-Full-data run에서는 매우 큰 factor-score table을 다시 한 번에 materialize하지 않도록 chunked factor-score generation을 사용합니다.
+Full-data run에서는 partitioned feature preparation과 chunked factor-score generation을 사용해 매우 큰 score table을 한 번에 materialize하지 않습니다.
 
 ## Safety and publication policy
 
