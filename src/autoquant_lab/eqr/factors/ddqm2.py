@@ -436,6 +436,169 @@ def backtest_stock_score_qspread(
     return portfolio, pd.DataFrame(leg_rows)
 
 
+def conservative_cost_tax_assumptions() -> dict[str, float | str]:
+    """Return documented conservative defaults for long-only research costs.
+
+    These are not tax advice.  They are deliberately simple research assumptions
+    for a monthly-rebalanced long-only backtest:
+
+    - ``transaction_cost_bps`` is charged against one-way turnover.
+    - ``tax_rate`` is applied to positive monthly gains on the fraction of the
+      portfolio assumed to be realized by turnover.
+    """
+
+    return {
+        "transaction_cost_bps": 50.0,
+        "tax_rate": 0.408,
+        "taxable_gain_policy": "positive_monthly_gain_times_turnover",
+        "description": "Conservative research proxy: 50 bps one-way turnover cost plus 40.8% tax drag on positive gains realized by turnover; not tax advice.",
+    }
+
+
+def backtest_stock_score_long_only_qspread(
+    allocations: pd.DataFrame,
+    factor_scores: pd.DataFrame,
+    panel: pd.DataFrame,
+    *,
+    return_column: str = "ret_1m_fwd",
+    quantile: float = 0.10,
+    transaction_cost_bps: float = 50.0,
+    tax_rate: float = 0.408,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Backtest a top-q equal-weight long-only stock-score QSpread surface.
+
+    The strategy is fully invested in the highest-scoring ``quantile`` of names
+    each period and has no short leg.  ``portfolio_return`` is the conservative
+    net return used as the primary research lens; gross and drag components are
+    retained in separate columns for auditability.
+    """
+
+    if allocations.empty or factor_scores.empty:
+        empty = pd.DataFrame(
+            {
+                "formation_date": pd.Series(dtype="datetime64[ns]"),
+                "split": pd.Series(dtype="object"),
+                "portfolio_return": pd.Series(dtype="float64"),
+                "portfolio_return_gross": pd.Series(dtype="float64"),
+                "cumulative_return": pd.Series(dtype="float64"),
+                "cumulative_return_gross": pd.Series(dtype="float64"),
+            }
+        )
+        return empty, pd.DataFrame()
+    required = {"formation_date", "permno", return_column}
+    missing = sorted(required.difference(panel.columns))
+    if missing:
+        raise ValueError(f"panel is missing long-only QSpread return columns: {missing}")
+    if not 0.0 < quantile < 1.0:
+        raise ValueError("quantile must be in (0, 1) for long-only QSpread")
+
+    weights = allocations.loc[:, ["formation_date", "factor_id", "weight", "split"]].copy()
+    scores = factor_scores.loc[:, ["formation_date", "permno", "factor_id", "factor_score"]].copy()
+    merged = scores.merge(weights, on=["formation_date", "factor_id"], how="inner")
+    merged["weighted_factor_score"] = pd.to_numeric(merged["factor_score"], errors="coerce") * pd.to_numeric(merged["weight"], errors="coerce")
+    stock_scores = merged.groupby(["formation_date", "permno", "split"], as_index=False).agg(
+        stock_score=("weighted_factor_score", "sum"),
+        factors_used=("factor_id", "nunique"),
+        max_factor_weight=("weight", "max"),
+        herfindahl_weight=("weight", lambda values: float(np.square(pd.to_numeric(values, errors="coerce").fillna(0.0)).sum())),
+    )
+    realized = panel.loc[:, ["formation_date", "permno", return_column]].copy().rename(columns={return_column: "forward_return"})
+    stock_scores = stock_scores.merge(realized, on=["formation_date", "permno"], how="left")
+
+    cost_rate = float(transaction_cost_bps) / 10_000.0
+    tax_rate = float(tax_rate)
+    rows: list[dict[str, Any]] = []
+    leg_rows: list[dict[str, Any]] = []
+    previous_by_split: dict[str, set[Any]] = {}
+    for (formation_date, split), group in stock_scores.groupby(["formation_date", "split"], sort=True):
+        clean = group.dropna(subset=["stock_score", "forward_return"]).copy()
+        if clean.empty:
+            continue
+        long_cut = clean["stock_score"].quantile(1.0 - quantile)
+        long_leg = clean.loc[clean["stock_score"] >= long_cut].copy()
+        long_set = set(long_leg["permno"].tolist())
+        split_key = str(split)
+        turnover = _turnover(previous_by_split.get(split_key, set()), long_set)
+        previous_by_split[split_key] = long_set
+        gross_return = float(long_leg["forward_return"].mean()) if not long_leg.empty else np.nan
+        trading_cost = float(turnover * cost_rate) if not pd.isna(gross_return) else np.nan
+        taxable_gain = max(gross_return, 0.0) * min(max(turnover, 0.0), 1.0) if not pd.isna(gross_return) else np.nan
+        tax_drag = float(taxable_gain * tax_rate) if not pd.isna(taxable_gain) else np.nan
+        net_return = float(gross_return - trading_cost - tax_drag) if not pd.isna(gross_return) else np.nan
+        rows.append(
+            {
+                "formation_date": formation_date,
+                "split": split,
+                "portfolio_return": net_return,
+                "portfolio_return_net": net_return,
+                "portfolio_return_gross": gross_return,
+                "trading_cost_return": trading_cost,
+                "tax_drag_return": tax_drag,
+                "long_count": int(len(long_leg)),
+                "short_count": 0,
+                "turnover": turnover,
+                "long_turnover": turnover,
+                "short_turnover": 0.0,
+                "transaction_cost_bps": float(transaction_cost_bps),
+                "tax_rate": tax_rate,
+                "max_factor_weight": float(clean["max_factor_weight"].max()),
+                "mean_herfindahl_weight": float(clean["herfindahl_weight"].mean()),
+            }
+        )
+        leg_rows.extend(
+            {
+                "formation_date": formation_date,
+                "split": split,
+                "leg": "long",
+                "permno": row.permno,
+                "stock_score": row.stock_score,
+                "forward_return": row.forward_return,
+                "position_weight": 1.0 / len(long_leg) if len(long_leg) else 0.0,
+            }
+            for row in long_leg.itertuples(index=False)
+        )
+    portfolio = pd.DataFrame(rows)
+    if not portfolio.empty:
+        portfolio = portfolio.sort_values(["split", "formation_date"]).reset_index(drop=True)
+        portfolio["cumulative_return"] = portfolio.groupby("split", group_keys=False)["portfolio_return"].transform(lambda returns: (1.0 + returns.fillna(0.0)).cumprod() - 1.0)
+        portfolio["cumulative_return_net"] = portfolio["cumulative_return"]
+        portfolio["cumulative_return_gross"] = portfolio.groupby("split", group_keys=False)["portfolio_return_gross"].transform(lambda returns: (1.0 + returns.fillna(0.0)).cumprod() - 1.0)
+        portfolio = portfolio.sort_values("formation_date").reset_index(drop=True)
+    return portfolio, pd.DataFrame(leg_rows)
+
+
+def cost_tax_sensitivity(portfolio: pd.DataFrame, *, cost_bps_grid: Sequence[float] = (10.0, 25.0, 50.0, 100.0), tax_rate_grid: Sequence[float] = (0.0, 0.20, 0.35, 0.408)) -> pd.DataFrame:
+    """Recompute simple long-only net outcomes across cost/tax assumptions."""
+
+    if portfolio.empty or "portfolio_return_gross" not in portfolio.columns:
+        return pd.DataFrame()
+    rows: list[dict[str, Any]] = []
+    frame = portfolio.copy()
+    gross = pd.to_numeric(frame["portfolio_return_gross"], errors="coerce").fillna(0.0)
+    turnover = pd.to_numeric(frame.get("turnover", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0, upper=1.0)
+    for split, split_index in frame.groupby("split", sort=True).groups.items():
+        idx = list(split_index)
+        for cost_bps in cost_bps_grid:
+            cost_rate = float(cost_bps) / 10_000.0
+            for tax_rate in tax_rate_grid:
+                net = gross.loc[idx] - turnover.loc[idx] * cost_rate - gross.loc[idx].clip(lower=0.0) * turnover.loc[idx] * float(tax_rate)
+                equity = (1.0 + net).cumprod()
+                drawdown = equity / equity.cummax() - 1.0
+                rows.append(
+                    {
+                        "split": split,
+                        "transaction_cost_bps": float(cost_bps),
+                        "tax_rate": float(tax_rate),
+                        "periods": int(len(net)),
+                        "mean_monthly_return": float(net.mean()),
+                        "volatility_monthly": float(net.std(ddof=0)),
+                        "cumulative_return": float(equity.iloc[-1] - 1.0) if len(equity) else 0.0,
+                        "max_drawdown": float(drawdown.min()) if len(drawdown) else 0.0,
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
 def _turnover(previous: set[Any], current: set[Any]) -> float:
     if not current:
         return 0.0

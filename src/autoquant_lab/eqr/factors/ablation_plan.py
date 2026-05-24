@@ -176,7 +176,7 @@ def _parse_choice(raw: Any, axis_index: int, choice_index: int) -> AblationChoic
 
 
 def _string_tuple(value: Any, field_name: str) -> tuple[str, ...]:
-    if not isinstance(value, Iterable) or isinstance(value, str | bytes):
+    if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
         raise ValueError(f"{field_name} must be a sequence")
     return tuple(str(item) for item in value)
 

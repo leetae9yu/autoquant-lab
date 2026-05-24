@@ -199,7 +199,7 @@ def _parse_panel(raw: Mapping[str, Any]) -> PanelConfig:
     share_codes = _int_tuple(universe_raw["share_codes"], "panel.universe.share_codes", min_value=1)
     exchange_codes = _int_tuple(universe_raw["exchange_codes"], "panel.universe.exchange_codes", min_value=1)
     min_market_cap = universe_raw["min_market_cap"]
-    if min_market_cap is not None and (not isinstance(min_market_cap, int | float) or min_market_cap < 0):
+    if min_market_cap is not None and (not isinstance(min_market_cap, (int, float)) or min_market_cap < 0):
         raise ConfigValidationError("panel.universe.min_market_cap must be a non-negative number or null")
     exclude_financials = _bool(universe_raw["exclude_financials"], "panel.universe.exclude_financials")
     horizons = _int_tuple(raw["forward_horizons"], "panel.forward_horizons", min_value=1)
@@ -349,7 +349,7 @@ def _validate_supported_yaml_tree(value: Any, path: str = "root", seen: set[int]
             _validate_supported_yaml_tree(item, f"{path}.{key}", seen)
         seen.remove(object_id)
         return
-    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         object_id = id(value)
         if object_id in seen:
             raise ConfigValidationError(f"Recursive YAML aliases are not allowed at {path}")
@@ -358,7 +358,7 @@ def _validate_supported_yaml_tree(value: Any, path: str = "root", seen: set[int]
             _validate_supported_yaml_tree(item, f"{path}[{index}]", seen)
         seen.remove(object_id)
         return
-    if isinstance(value, str | int | float | bool | date | datetime) or value is None:
+    if isinstance(value, (str, int, float, bool, date, datetime)) or value is None:
         return
     raise ConfigValidationError(f"Unsupported YAML value type at {path}: {type(value).__name__}")
 
@@ -369,7 +369,7 @@ def _scan_for_unsafe_values(value: Any, path: str = "root") -> None:
             key_text = str(key)
             _scan_string(key_text, f"{path}.{key_text}")
             _scan_for_unsafe_values(item, f"{path}.{key_text}")
-    elif isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         for index, item in enumerate(value):
             _scan_for_unsafe_values(item, f"{path}[{index}]")
     elif isinstance(value, str):
@@ -415,7 +415,7 @@ def _mapping(value: Any, path: str) -> Mapping[str, Any]:
 
 
 def _sequence(value: Any, path: str) -> Sequence[Any]:
-    if not isinstance(value, Sequence) or isinstance(value, str | bytes | bytearray):
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
         raise ConfigValidationError(f"{path} must be a sequence")
     if not value:
         raise ConfigValidationError(f"{path} must not be empty")
@@ -475,7 +475,7 @@ def _fraction(value: Any, path: str) -> float:
 
 
 def _number(value: Any, path: str) -> float:
-    if not isinstance(value, int | float) or isinstance(value, bool):
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ConfigValidationError(f"{path} must be numeric")
     return float(value)
 
@@ -483,7 +483,7 @@ def _number(value: Any, path: str) -> float:
 def _normalize_for_json(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {str(key): _normalize_for_json(item) for key, item in value.items()}
-    if isinstance(value, tuple | list):
+    if isinstance(value, (tuple, list)):
         return [_normalize_for_json(item) for item in value]
     if isinstance(value, date):
         return value.isoformat()

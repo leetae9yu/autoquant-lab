@@ -716,7 +716,7 @@ class SQLiteJobLedger:
     ) -> int:
         """Record a numeric or structured metric for a job."""
 
-        if isinstance(value, int | float):
+        if isinstance(value, (int, float)):
             value_real = float(value)
             value_json = _json_dumps({"value": value})
         else:

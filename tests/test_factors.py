@@ -10,6 +10,7 @@ import pandas as pd
 from autoquant_lab.eqr.factors import (
     FactorDefinition,
     backtest_factor_allocations,
+    backtest_stock_score_long_only_qspread,
     backtest_stock_score_qspread,
     build_factor_allocations,
     build_factor_long_short_returns,
@@ -155,6 +156,38 @@ def test_stock_score_qspread_surface_records_turnover_and_legs() -> None:
     assert portfolio["long_count"].min() > 0
     assert portfolio["short_count"].min() > 0
     assert not legs.empty
+
+
+def test_stock_score_long_only_qspread_is_top_q_equal_weight_net_of_costs() -> None:
+    frame = _synthetic_panel(months=12, assets=20)
+    definitions = (
+        FactorDefinition("quality", "Quality", "quality", "global", "compustat__revenue_yoy", 1.0, "implemented", "test"),
+        FactorDefinition("value", "Value", "valuation", "global", "compustat__pb", -1.0, "implemented", "test"),
+    )
+    scores, _ = build_factor_scores(frame, definitions)
+    returns = build_factor_long_short_returns(scores, frame, quantile=0.2)
+    result = train_factor_return_models(returns, frame, model_name="baseline_mean", validation_fraction=0.2, holdout_fraction=0.2, min_observations=6)
+    allocations = build_factor_allocations(result.predictions)
+
+    portfolio, legs = backtest_stock_score_long_only_qspread(
+        allocations,
+        scores,
+        frame,
+        quantile=0.20,
+        transaction_cost_bps=100.0,
+        tax_rate=0.50,
+    )
+
+    assert not portfolio.empty
+    assert not legs.empty
+    assert set(legs["leg"]) == {"long"}
+    assert portfolio["short_count"].eq(0).all()
+    assert portfolio["long_count"].min() > 0
+    assert {"portfolio_return_gross", "portfolio_return_net", "trading_cost_return", "tax_drag_return", "cumulative_return_gross"}.issubset(portfolio.columns)
+    assert portfolio["portfolio_return"].equals(portfolio["portfolio_return_net"])
+    first = portfolio.sort_values("formation_date").iloc[0]
+    expected_net = first["portfolio_return_gross"] - first["trading_cost_return"] - first["tax_drag_return"]
+    assert abs(first["portfolio_return_net"] - expected_net) < 1e-12
 
 
 def test_walk_forward_models_emit_long_oos_holdout() -> None:

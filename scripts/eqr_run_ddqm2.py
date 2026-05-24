@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import yaml
 
 
@@ -25,10 +26,13 @@ if SRC_DIR.is_dir():
 
 from autoquant_lab.eqr.factors import (  # noqa: E402
     backtest_factor_allocations,
+    backtest_stock_score_long_only_qspread,
     backtest_stock_score_qspread,
     build_factor_allocations,
     build_factor_long_short_returns,
     build_factor_scores,
+    conservative_cost_tax_assumptions,
+    cost_tax_sensitivity,
     macro_design_columns,
     select_factor_universe,
     train_factor_return_models,
@@ -66,10 +70,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--factor-universe", choices=("all_implemented_current", "selected_13_global_local", "selected_13_plus_us_overrides"), default=None, help="Eligible factor universe for modeling/allocation.")
     parser.add_argument("--factor-universe-target-count", type=int, default=None, help="Target factor count for selected universes; defaults to 13.")
     parser.add_argument("--macro-feature-design", choices=("current_macro_family", "ddqm2_25x3_us_macro", "expanded_us_macro"), default=None, help="Macro feature design used by factor models.")
-    parser.add_argument("--portfolio-surface", choices=("weighted_factor_return_current", "stock_score_qspread_ddqm2"), default=None, help="Portfolio surface to backtest.")
+    parser.add_argument("--portfolio-surface", choices=("weighted_factor_return_current", "stock_score_qspread_ddqm2", "stock_score_long_only_qspread"), default=None, help="Portfolio surface to backtest.")
     parser.add_argument("--evaluation-mode", choices=("single_holdout", "walk_forward"), default=None, help="DDQM2 evaluation protocol; walk_forward gives expanding-window OOS predictions.")
     parser.add_argument("--walk-forward-test-periods", type=int, default=None, help="Number of monthly periods per walk-forward OOS fold.")
     parser.add_argument("--walk-forward-validation-periods", type=int, default=None, help="Number of recent periods held out for validation inside each walk-forward fold.")
+    parser.add_argument("--model-params-json", default=None, help="JSON object of model hyperparameter overrides for research sweeps.")
+    parser.add_argument("--transaction-cost-bps", type=float, default=None, help="Long-only QSpread one-way turnover cost in basis points.")
+    parser.add_argument("--tax-rate", type=float, default=None, help="Long-only QSpread simplified tax drag rate on positive gains realized by turnover.")
     return parser.parse_args()
 
 
@@ -108,13 +115,86 @@ def _read_prepared_features(feature_dir: Path) -> pd.DataFrame:
             frames.append(frame)
     if not frames:
         raise FileNotFoundError(f"No prepared feature parquet files with {ID_COLUMN}/{PERIOD_COLUMN} keys found in {feature_dir}")
+    return _merge_prepared_feature_frames(frames, source=str(feature_dir))
+
+
+def _merge_prepared_feature_frames(frames: list[pd.DataFrame], *, source: str) -> pd.DataFrame:
+    """Merge prepared feature files, or concatenate partitioned same-schema parts."""
+
+    if not frames:
+        return pd.DataFrame(columns=[ID_COLUMN, PERIOD_COLUMN])
+    first_columns = list(frames[0].columns)
+    same_schema = all(list(frame.columns) == first_columns for frame in frames)
+    if same_schema:
+        merged = pd.concat(frames, ignore_index=True)
+        if merged.duplicated([ID_COLUMN, PERIOD_COLUMN]).any():
+            raise ValueError(f"Prepared partitioned features have duplicate (permno, formation_date) keys: {source}")
+        return merged.sort_values([PERIOD_COLUMN, ID_COLUMN]).reset_index(drop=True)
+
     merged = frames[0]
     for frame in frames[1:]:
         new_columns = [col for col in frame.columns if col not in merged.columns or col in {ID_COLUMN, PERIOD_COLUMN}]
         merged = merged.merge(frame[new_columns], on=[ID_COLUMN, PERIOD_COLUMN], how="left")
         if merged.duplicated([ID_COLUMN, PERIOD_COLUMN]).any():
-            raise ValueError("Prepared feature merge produced duplicate (permno, formation_date) keys")
-    return merged
+            raise ValueError(f"Prepared feature merge produced duplicate (permno, formation_date) keys: {source}")
+    return merged.sort_values([PERIOD_COLUMN, ID_COLUMN]).reset_index(drop=True)
+
+
+def _feature_parts(feature_dir: Path) -> list[dict[str, Any]]:
+    metadata_path = feature_dir / "monthly_features_metadata.json"
+    if metadata_path.exists():
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if metadata.get("partitioned") and isinstance(metadata.get("parts"), list):
+            return [
+                {
+                    "path": Path(part["path"]),
+                    "min_date": pd.Timestamp(part["min_date"]),
+                    "max_date": pd.Timestamp(part["max_date"]),
+                }
+                for part in metadata["parts"]
+            ]
+    parts: list[dict[str, Any]] = []
+    for path in sorted(feature_dir.glob("*.parquet")):
+        if path.name.startswith("."):
+            continue
+        probe = pd.read_parquet(path, columns=[PERIOD_COLUMN])
+        if probe.empty:
+            continue
+        dates = pd.to_datetime(probe[PERIOD_COLUMN], errors="coerce")
+        parts.append({"path": path, "min_date": dates.min(), "max_date": dates.max()})
+    return parts
+
+
+def _read_prepared_macro_features(feature_dir: Path) -> pd.DataFrame:
+    parts = _feature_parts(feature_dir)
+    if not parts:
+        raise FileNotFoundError(f"No prepared feature parquet parts found in {feature_dir}")
+    frames: list[pd.DataFrame] = []
+    for part in parts:
+        path = Path(part["path"])
+        columns = list(pq.read_schema(path).names)
+        macro_cols = [col for col in columns if col == PERIOD_COLUMN or col.startswith("macro__")]
+        frame = pd.read_parquet(path, columns=macro_cols)
+        frames.append(frame.groupby(PERIOD_COLUMN, as_index=False).last())
+    macro = pd.concat(frames, ignore_index=True)
+    macro[PERIOD_COLUMN] = pd.to_datetime(macro[PERIOD_COLUMN], errors="coerce")
+    return macro.sort_values(PERIOD_COLUMN).drop_duplicates(PERIOD_COLUMN, keep="last").reset_index(drop=True)
+
+
+def _read_feature_chunk(feature_dir: Path, dates: list[pd.Timestamp]) -> pd.DataFrame:
+    wanted = {pd.Timestamp(date) for date in dates}
+    frames: list[pd.DataFrame] = []
+    for part in _feature_parts(feature_dir):
+        if pd.Timestamp(part["max_date"]) < min(wanted) or pd.Timestamp(part["min_date"]) > max(wanted):
+            continue
+        frame = pd.read_parquet(part["path"])
+        frame[PERIOD_COLUMN] = pd.to_datetime(frame[PERIOD_COLUMN], errors="coerce")
+        frame = frame.loc[frame[PERIOD_COLUMN].isin(wanted)].copy()
+        if not frame.empty:
+            frames.append(frame)
+    if not frames:
+        return pd.DataFrame(columns=[ID_COLUMN, PERIOD_COLUMN])
+    return _merge_prepared_feature_frames(frames, source=str(feature_dir))
 
 
 def load_research_frame(panel_path: Path, feature_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -189,6 +269,19 @@ def _model_params(config: dict[str, Any], model_name: str) -> dict[str, Any]:
     return {}
 
 
+def _merge_model_params(base: dict[str, Any], override_json: str | None) -> dict[str, Any]:
+    """Merge JSON hyperparameter overrides into config/default model params."""
+
+    params = dict(base)
+    if not override_json:
+        return params
+    loaded = json.loads(override_json)
+    if not isinstance(loaded, dict):
+        raise ValueError("--model-params-json must decode to a JSON object")
+    params.update(loaded)
+    return params
+
+
 def _ddqm2_config(config: dict[str, Any]) -> dict[str, Any]:
     section = config.get("ddqm2", {})
     return dict(section) if isinstance(section, dict) else {}
@@ -207,9 +300,24 @@ def _portfolio_summary(portfolio: pd.DataFrame) -> dict[str, float | int]:
         "cumulative_return": float(equity.iloc[-1] - 1.0),
         "max_drawdown": float(drawdown.min()),
     }
-    for column in ("long_count", "short_count", "turnover", "long_turnover", "short_turnover", "max_factor_weight", "mean_herfindahl_weight"):
+    for column in (
+        "long_count",
+        "short_count",
+        "turnover",
+        "long_turnover",
+        "short_turnover",
+        "max_factor_weight",
+        "mean_herfindahl_weight",
+        "portfolio_return_gross",
+        "portfolio_return_net",
+        "trading_cost_return",
+        "tax_drag_return",
+    ):
         if column in portfolio.columns:
             summary[column] = float(pd.to_numeric(portfolio[column], errors="coerce").mean())
+    for cumulative_column in ("cumulative_return_gross", "cumulative_return_net"):
+        if cumulative_column in portfolio.columns and not portfolio[cumulative_column].empty:
+            summary[cumulative_column] = float(pd.to_numeric(portfolio[cumulative_column], errors="coerce").dropna().iloc[-1])
     return summary
 
 
@@ -218,6 +326,8 @@ def _portfolio_summaries_by_split(portfolio: pd.DataFrame) -> dict[str, dict[str
 
 
 def _headline_portfolio_summary(portfolio: pd.DataFrame) -> dict[str, float | int]:
+    if portfolio.empty or "formation_date" not in portfolio.columns:
+        return _portfolio_summary(portfolio)
     if "split" in portfolio.columns and (portfolio["split"] == "holdout").any():
         return _portfolio_summary(portfolio.loc[portfolio["split"] == "holdout"].sort_values("formation_date"))
     return _portfolio_summary(portfolio.sort_values("formation_date"))
@@ -293,6 +403,176 @@ def _build_factor_artifacts(
     return metadata, factor_returns, factor_score_rows, ["factor_scores/"], pd.DataFrame()
 
 
+def _build_factor_artifacts_from_feature_dir(
+    feature_dir: Path,
+    panel: pd.DataFrame,
+    *,
+    return_column: str,
+    quantile: float,
+    run_dir: Path,
+    chunk_dates: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, int, list[str], pd.DataFrame]:
+    """Build factor artifacts by reading only the feature partitions needed."""
+
+    if chunk_dates <= 0:
+        features = _filter_features_to_panel_dates(_read_prepared_features(feature_dir), panel)
+        return _build_factor_artifacts(features, panel, return_column=return_column, quantile=quantile, run_dir=run_dir, chunk_dates=0)
+
+    metadata = pd.DataFrame([definition.to_dict() for definition in implemented_factor_definitions()])
+    score_dir = run_dir / "factor_scores"
+    score_dir.mkdir(parents=True, exist_ok=True)
+    factor_return_frames: list[pd.DataFrame] = []
+    factor_score_rows = 0
+    for chunk_index, dates in enumerate(_date_chunks(panel, chunk_dates)):
+        chunk_panel = panel.loc[panel[PERIOD_COLUMN].isin(dates)].copy()
+        chunk_features = _read_feature_chunk(feature_dir, [pd.Timestamp(date) for date in dates])
+        factor_scores, _ = build_factor_scores(chunk_features)
+        factor_score_rows += int(len(factor_scores))
+        factor_scores.to_parquet(score_dir / f"part-{chunk_index:04d}.parquet", index=False)
+        factor_returns = build_factor_long_short_returns(factor_scores, chunk_panel, return_column=return_column, quantile=quantile)
+        if not factor_returns.empty:
+            factor_return_frames.append(factor_returns)
+
+    if factor_return_frames:
+        factor_returns = pd.concat(factor_return_frames, ignore_index=True).sort_values([PERIOD_COLUMN, "factor_id"]).reset_index(drop=True)
+    else:
+        factor_returns = pd.DataFrame()
+    return metadata, factor_returns, factor_score_rows, ["factor_scores/"], pd.DataFrame()
+
+
+def _backtest_long_only_from_score_parts(
+    allocations: pd.DataFrame,
+    score_dir: Path,
+    panel: pd.DataFrame,
+    *,
+    selected_factor_ids: set[str],
+    return_column: str,
+    quantile: float,
+    transaction_cost_bps: float,
+    tax_rate: float,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Backtest long-only QSpread without materializing all factor scores."""
+
+    empty_portfolio = pd.DataFrame(
+        {
+            "formation_date": pd.Series(dtype="datetime64[ns]"),
+            "split": pd.Series(dtype="object"),
+            "portfolio_return": pd.Series(dtype="float64"),
+            "portfolio_return_net": pd.Series(dtype="float64"),
+            "portfolio_return_gross": pd.Series(dtype="float64"),
+            "cumulative_return": pd.Series(dtype="float64"),
+            "cumulative_return_net": pd.Series(dtype="float64"),
+            "cumulative_return_gross": pd.Series(dtype="float64"),
+        }
+    )
+    if allocations.empty:
+        return empty_portfolio, pd.DataFrame()
+    required = {"formation_date", "permno", return_column}
+    missing = sorted(required.difference(panel.columns))
+    if missing:
+        raise ValueError(f"panel is missing long-only QSpread return columns: {missing}")
+
+    cost_rate = float(transaction_cost_bps) / 10_000.0
+    tax_rate = float(tax_rate)
+    period_rows: list[dict[str, Any]] = []
+    leg_rows: list[dict[str, Any]] = []
+    weights = allocations.loc[:, ["formation_date", "factor_id", "weight", "split"]].copy()
+    weights["formation_date"] = pd.to_datetime(weights["formation_date"], errors="coerce")
+    realized = panel.loc[:, ["formation_date", "permno", return_column]].copy().rename(columns={return_column: "forward_return"})
+    realized["formation_date"] = pd.to_datetime(realized["formation_date"], errors="coerce")
+
+    for path in sorted(score_dir.glob("part-*.parquet")):
+        scores = pd.read_parquet(path, columns=["formation_date", "permno", "factor_id", "factor_score"])
+        scores = scores.loc[scores["factor_id"].astype(str).isin(selected_factor_ids)].copy()
+        if scores.empty:
+            continue
+        scores["formation_date"] = pd.to_datetime(scores["formation_date"], errors="coerce")
+        dates = set(scores["formation_date"].dropna().unique())
+        chunk_weights = weights.loc[weights["formation_date"].isin(dates)].copy()
+        if chunk_weights.empty:
+            continue
+        merged = scores.merge(chunk_weights, on=["formation_date", "factor_id"], how="inner")
+        if merged.empty:
+            continue
+        merged["weighted_factor_score"] = pd.to_numeric(merged["factor_score"], errors="coerce") * pd.to_numeric(merged["weight"], errors="coerce")
+        stock_scores = merged.groupby(["formation_date", "permno", "split"], as_index=False).agg(
+            stock_score=("weighted_factor_score", "sum"),
+            factors_used=("factor_id", "nunique"),
+            max_factor_weight=("weight", "max"),
+            herfindahl_weight=("weight", lambda values: float(np.square(pd.to_numeric(values, errors="coerce").fillna(0.0)).sum())),
+        )
+        stock_scores = stock_scores.merge(realized.loc[realized["formation_date"].isin(dates)], on=["formation_date", "permno"], how="left")
+        for (formation_date, split), group in stock_scores.groupby(["formation_date", "split"], sort=True):
+            clean = group.dropna(subset=["stock_score", "forward_return"]).copy()
+            if clean.empty:
+                continue
+            long_cut = clean["stock_score"].quantile(1.0 - quantile)
+            long_leg = clean.loc[clean["stock_score"] >= long_cut].copy()
+            long_set = set(long_leg["permno"].tolist())
+            gross_return = float(long_leg["forward_return"].mean()) if not long_leg.empty else np.nan
+            period_rows.append(
+                {
+                    "formation_date": formation_date,
+                    "split": split,
+                    "portfolio_return_gross": gross_return,
+                    "long_count": int(len(long_leg)),
+                    "short_count": 0,
+                    "long_set": long_set,
+                    "max_factor_weight": float(clean["max_factor_weight"].max()),
+                    "mean_herfindahl_weight": float(clean["herfindahl_weight"].mean()),
+                }
+            )
+            leg_rows.extend(
+                {
+                    "formation_date": formation_date,
+                    "split": split,
+                    "leg": "long",
+                    "permno": row.permno,
+                    "stock_score": row.stock_score,
+                    "forward_return": row.forward_return,
+                    "position_weight": 1.0 / len(long_leg) if len(long_leg) else 0.0,
+                }
+                for row in long_leg.itertuples(index=False)
+            )
+
+    portfolio = pd.DataFrame(period_rows)
+    if portfolio.empty:
+        return empty_portfolio, pd.DataFrame(leg_rows)
+    portfolio = portfolio.sort_values(["split", "formation_date"]).reset_index(drop=True)
+    previous_by_split: dict[str, set[Any]] = {}
+    turnovers: list[float] = []
+    for row in portfolio.itertuples(index=False):
+        split_key = str(row.split)
+        current = set(row.long_set)
+        turnover = _position_turnover(previous_by_split.get(split_key, set()), current)
+        previous_by_split[split_key] = current
+        turnovers.append(turnover)
+    portfolio["turnover"] = turnovers
+    portfolio["long_turnover"] = portfolio["turnover"]
+    portfolio["short_turnover"] = 0.0
+    gross = pd.to_numeric(portfolio["portfolio_return_gross"], errors="coerce")
+    turnover = pd.to_numeric(portfolio["turnover"], errors="coerce").fillna(0.0).clip(lower=0.0, upper=1.0)
+    portfolio["trading_cost_return"] = turnover * cost_rate
+    portfolio["tax_drag_return"] = gross.clip(lower=0.0) * turnover * tax_rate
+    portfolio["portfolio_return_net"] = gross - portfolio["trading_cost_return"] - portfolio["tax_drag_return"]
+    portfolio["portfolio_return"] = portfolio["portfolio_return_net"]
+    portfolio["transaction_cost_bps"] = float(transaction_cost_bps)
+    portfolio["tax_rate"] = tax_rate
+    portfolio = portfolio.drop(columns=["long_set"])
+    portfolio["cumulative_return"] = portfolio.groupby("split", group_keys=False)["portfolio_return"].transform(lambda returns: (1.0 + returns.fillna(0.0)).cumprod() - 1.0)
+    portfolio["cumulative_return_net"] = portfolio["cumulative_return"]
+    portfolio["cumulative_return_gross"] = portfolio.groupby("split", group_keys=False)["portfolio_return_gross"].transform(lambda returns: (1.0 + returns.fillna(0.0)).cumprod() - 1.0)
+    return portfolio.sort_values("formation_date").reset_index(drop=True), pd.DataFrame(leg_rows)
+
+
+def _position_turnover(previous: set[Any], current: set[Any]) -> float:
+    if not current:
+        return 0.0
+    if not previous:
+        return 1.0
+    return 1.0 - (len(previous.intersection(current)) / len(current))
+
+
 def _load_selected_factor_scores(run_dir: Path, factor_score_artifacts: list[str], selected_factor_ids: set[str]) -> pd.DataFrame:
     if "factor_scores/" in factor_score_artifacts:
         score_paths = sorted((run_dir / "factor_scores").glob("part-*.parquet"))
@@ -330,8 +610,11 @@ def _write_report(run_dir: Path, manifest: dict[str, Any], metrics: pd.DataFrame
         "- Headline split: `holdout` when available; train/validation are diagnostics only.",
         f"- Portfolio periods: {portfolio_summary['periods']}",
         f"- Holdout cumulative return: {portfolio_summary['cumulative_return']:.6f}",
+        f"- Holdout gross cumulative return: {portfolio_summary.get('cumulative_return_gross', portfolio_summary['cumulative_return']):.6f}",
         f"- Holdout max drawdown: {portfolio_summary['max_drawdown']:.6f}",
         f"- Holdout turnover: {portfolio_summary.get('turnover', 0.0):.6f}",
+        f"- Mean trading-cost drag: {portfolio_summary.get('trading_cost_return', 0.0):.6f}",
+        f"- Mean tax drag: {portfolio_summary.get('tax_drag_return', 0.0):.6f}",
         "",
         "## Top holdout factor models",
         "",
@@ -358,6 +641,42 @@ def _write_report(run_dir: Path, manifest: dict[str, Any], metrics: pd.DataFrame
     (run_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+def _factor_diagnostics(allocations: pd.DataFrame, predictions: pd.DataFrame, metrics: pd.DataFrame) -> pd.DataFrame:
+    """Summarize model-specific factor behavior for report comparison."""
+
+    if allocations.empty:
+        return pd.DataFrame()
+    weight_summary = (
+        allocations.assign(
+            weight=pd.to_numeric(allocations["weight"], errors="coerce"),
+            prediction=pd.to_numeric(allocations["prediction"], errors="coerce"),
+        )
+        .groupby("factor_id", as_index=False)
+        .agg(
+            active_periods=("formation_date", "nunique"),
+            mean_weight=("weight", "mean"),
+            max_weight=("weight", "max"),
+            mean_prediction=("prediction", "mean"),
+            positive_prediction_share=("prediction", lambda values: float((pd.to_numeric(values, errors="coerce") > 0).mean())),
+        )
+    )
+    if not predictions.empty and "factor_long_short_ret_1m" in predictions.columns:
+        pred_summary = (
+            predictions.assign(realized=pd.to_numeric(predictions["factor_long_short_ret_1m"], errors="coerce"))
+            .groupby("factor_id", as_index=False)
+            .agg(mean_realized_factor_return=("realized", "mean"))
+        )
+        weight_summary = weight_summary.merge(pred_summary, on="factor_id", how="left")
+    if not metrics.empty:
+        metric_cols = [
+            col
+            for col in ("factor_id", "model", "validation_correlation", "holdout_correlation", "holdout_mae", "runtime_seconds")
+            if col in metrics.columns
+        ]
+        weight_summary = weight_summary.merge(metrics[metric_cols], on="factor_id", how="left")
+    return weight_summary.sort_values(["mean_weight", "active_periods"], ascending=[False, False]).reset_index(drop=True)
+
+
 def main() -> int:
     args = parse_args()
     config = load_simple_yaml(args.config)
@@ -376,6 +695,10 @@ def main() -> int:
     evaluation_mode = str(args.evaluation_mode if args.evaluation_mode is not None else ddqm2.get("evaluation_mode", "single_holdout"))
     walk_forward_test_periods = int(args.walk_forward_test_periods if args.walk_forward_test_periods is not None else ddqm2.get("walk_forward_test_periods", 12))
     walk_forward_validation_periods = int(args.walk_forward_validation_periods if args.walk_forward_validation_periods is not None else ddqm2.get("walk_forward_validation_periods", 12))
+    default_costs = conservative_cost_tax_assumptions()
+    transaction_cost_bps = float(args.transaction_cost_bps if args.transaction_cost_bps is not None else ddqm2.get("transaction_cost_bps", default_costs["transaction_cost_bps"]))
+    tax_rate = float(args.tax_rate if args.tax_rate is not None else ddqm2.get("tax_rate", default_costs["tax_rate"]))
+    model_params = _merge_model_params(_model_params(config, model_name), args.model_params_json)
 
     panel = _cap_panel(load_prepared_panel(args.panel), args.max_rows)
     _enforce_factor_score_budget(panel, config, args.max_factor_score_rows, factor_score_chunk_dates)
@@ -383,9 +706,9 @@ def main() -> int:
     run_dir = _safe_run_dir(args.output_dir, run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    features = _filter_features_to_panel_dates(_read_prepared_features(args.feature_dir), panel)
-    metadata, factor_returns, factor_score_rows, factor_score_artifacts, factor_scores = _build_factor_artifacts(
-        features,
+    features = _filter_features_to_panel_dates(_read_prepared_macro_features(args.feature_dir), panel)
+    metadata, factor_returns, factor_score_rows, factor_score_artifacts, factor_scores = _build_factor_artifacts_from_feature_dir(
+        args.feature_dir,
         panel,
         return_column=args.return_column,
         quantile=quantile,
@@ -415,7 +738,7 @@ def main() -> int:
         factor_returns,
         features,
         model_name=model_name,
-        model_params=_model_params(config, model_name),
+        model_params=model_params,
         validation_fraction=validation_fraction,
         holdout_fraction=holdout_fraction,
         min_observations=min_observations,
@@ -429,19 +752,47 @@ def main() -> int:
         portfolio = backtest_factor_allocations(allocations, factor_returns)
         qspread_legs = pd.DataFrame()
     elif portfolio_surface == "stock_score_qspread_ddqm2":
-        portfolio, qspread_legs = backtest_stock_score_qspread(allocations, factor_scores, panel, return_column=args.return_column, quantile=0.10)
+        portfolio, qspread_legs = backtest_stock_score_qspread(allocations, factor_scores, panel, return_column=args.return_column, quantile=quantile)
+    elif portfolio_surface == "stock_score_long_only_qspread":
+        if factor_scores.empty and factor_score_artifacts == ["factor_scores/"]:
+            portfolio, qspread_legs = _backtest_long_only_from_score_parts(
+                allocations,
+                run_dir / "factor_scores",
+                panel,
+                selected_factor_ids=selected_factor_ids,
+                return_column=args.return_column,
+                quantile=quantile,
+                transaction_cost_bps=transaction_cost_bps,
+                tax_rate=tax_rate,
+            )
+        else:
+            portfolio, qspread_legs = backtest_stock_score_long_only_qspread(
+                allocations,
+                factor_scores,
+                panel,
+                return_column=args.return_column,
+                quantile=quantile,
+                transaction_cost_bps=transaction_cost_bps,
+                tax_rate=tax_rate,
+            )
     else:
         raise ValueError(f"Unsupported portfolio surface: {portfolio_surface}")
     portfolio_summary = _headline_portfolio_summary(portfolio)
     split_portfolio_summary = _portfolio_summaries_by_split(portfolio)
     macro_columns, macro_missing_columns = macro_design_columns(features, macro_feature_design)
+    factor_diagnostics = _factor_diagnostics(allocations, result.predictions, result.metrics)
+    sensitivity = cost_tax_sensitivity(portfolio) if portfolio_surface == "stock_score_long_only_qspread" else pd.DataFrame()
 
     metadata.to_csv(run_dir / "factor_metadata.csv", index=False)
     factor_returns.to_parquet(run_dir / "factor_returns.parquet", index=False)
     result.predictions.to_parquet(run_dir / "factor_predictions.parquet", index=False)
     result.metrics.to_csv(run_dir / "factor_model_metrics.csv", index=False)
     allocations.to_parquet(run_dir / "factor_allocations.parquet", index=False)
+    if not factor_diagnostics.empty:
+        factor_diagnostics.to_csv(run_dir / "factor_diagnostics.csv", index=False)
     portfolio.to_parquet(run_dir / "portfolio_returns.parquet", index=False)
+    if not sensitivity.empty:
+        sensitivity.to_csv(run_dir / "cost_tax_sensitivity.csv", index=False)
     if not qspread_legs.empty:
         qspread_legs.to_parquet(run_dir / "qspread_legs.parquet", index=False)
     (run_dir / "portfolio_summary.json").write_text(json.dumps(portfolio_summary, indent=2, default=_json_default), encoding="utf-8")
@@ -453,6 +804,7 @@ def main() -> int:
         "panel": str(args.panel),
         "feature_dir": str(args.feature_dir),
         "model": model_name,
+        "model_params": model_params,
         "return_column": args.return_column,
         "quantile": quantile,
         "validation_fraction": validation_fraction,
@@ -469,6 +821,12 @@ def main() -> int:
         "evaluation_mode": evaluation_mode,
         "walk_forward_test_periods": walk_forward_test_periods,
         "walk_forward_validation_periods": walk_forward_validation_periods,
+        "cost_tax_assumptions": {
+            **default_costs,
+            "transaction_cost_bps": transaction_cost_bps,
+            "tax_rate": tax_rate,
+            "research_only_not_tax_advice": True,
+        },
         "factor_score_chunk_dates": factor_score_chunk_dates,
         "panel_rows": int(len(panel)),
         "feature_rows": int(len(features)),
@@ -485,7 +843,9 @@ def main() -> int:
             "factor_predictions.parquet",
             "factor_model_metrics.csv",
             "factor_allocations.parquet",
+            *([] if factor_diagnostics.empty else ["factor_diagnostics.csv"]),
             "portfolio_returns.parquet",
+            *([] if sensitivity.empty else ["cost_tax_sensitivity.csv"]),
             *([] if qspread_legs.empty else ["qspread_legs.parquet"]),
             "portfolio_summary.json",
             "report.md",

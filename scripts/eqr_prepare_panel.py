@@ -33,7 +33,6 @@ from autoquant_lab.eqr.panel import (  # noqa: E402
 from autoquant_lab.eqr.path_resolver import resolve_data_paths  # noqa: E402
 from autoquant_lab.eqr.pit import filter_crsp_common_stocks  # noqa: E402
 from autoquant_lab.eqr.features.feature_registry import (  # noqa: E402
-    build_feature_families,
     enabled_feature_families,
     feature_metadata_records,
 )
@@ -60,6 +59,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Directory for prepared panel outputs.")
     parser.add_argument("--max-rows", type=int, default=0, help="Optional deterministic row cap for smoke-sized panel artifacts (0=all).")
     parser.add_argument("--row-cap-mode", choices=("chronological", "date-balanced"), default="date-balanced", help="How --max-rows is applied: deterministic rows spread across all formation dates or earliest rows.")
+    parser.add_argument("--partitioned", action="store_true", help="For --stage features, write date-chunked parquet parts instead of one monolithic feature file.")
+    parser.add_argument("--feature-chunk-months", type=int, default=12, help="Number of formation months per partitioned feature chunk.")
     return parser.parse_args()
 
 
@@ -436,6 +437,116 @@ def _filter_feature_inputs_to_panel(inputs: dict[str, pd.DataFrame], panel: pd.D
     return result
 
 
+def _date_chunks(dates: Sequence[pd.Timestamp], chunk_months: int) -> list[list[pd.Timestamp]]:
+    step = max(1, int(chunk_months))
+    ordered = [pd.Timestamp(date) for date in sorted(pd.Series(dates).dropna().unique())]
+    return [ordered[index : index + step] for index in range(0, len(ordered), step)]
+
+
+def _merge_family_features(panel: pd.DataFrame, active_families: Sequence[str], resolved: dict[str, Any], required_by_family: dict[str, set[str]]) -> tuple[pd.DataFrame, list[dict[str, str]]]:
+    """Build enabled feature families for one panel chunk using local artifacts only."""
+
+    import gc
+
+    from autoquant_lab.eqr.features.feature_registry import _registry
+
+    registry = _registry()
+    result = panel.copy()
+    all_metadata: list[dict[str, str]] = []
+    for family in active_families:
+        family_required = required_by_family.get(family, set())
+        family_inputs: dict[str, pd.DataFrame] = {}
+        for artifact_name in sorted(family_required):
+            frame = _artifact_frame(resolved, artifact_name)
+            if frame is not None:
+                family_inputs[artifact_name] = frame
+        if family == "ibes":
+            target = _artifact_frame(resolved, "ibes_target")
+            if target is not None:
+                family_inputs["ibes_target"] = target
+        family_inputs = _filter_feature_inputs_to_panel(family_inputs, panel)
+        built = registry[family](panel=panel, **family_inputs)
+        feature_columns = [col for col in built.frame.columns if col not in {"permno", "formation_date"}]
+        if feature_columns:
+            result = result.merge(built.frame, on=["permno", "formation_date"], how="left")
+            all_metadata.extend(built.metadata)
+        del family_inputs
+        gc.collect()
+    return result, all_metadata
+
+
+def _run_features_partitioned(
+    *,
+    panel: pd.DataFrame,
+    args: argparse.Namespace,
+    active_families: Sequence[str],
+    missing_by_family: dict[str, list[str]],
+    resolved: dict[str, Any],
+    required_by_family: dict[str, set[str]],
+) -> dict[str, Any]:
+    """Write feature artifacts in formation-date chunks to lower peak memory."""
+
+    from autoquant_lab.eqr.features.result import FeatureBuildResult
+
+    output_dir = args.output_dir if args.output_dir != DEFAULT_OUTPUT_DIR else PROJECT_ROOT / "experiments" / "prepared" / "features_chunked"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for old_part in output_dir.glob("part-*.parquet"):
+        old_part.unlink()
+
+    panel = panel.sort_values(["formation_date", "permno"]).reset_index(drop=True)
+    dates = [pd.Timestamp(date) for date in sorted(pd.Series(panel["formation_date"]).dropna().unique())]
+    chunks = _date_chunks(dates, args.feature_chunk_months)
+    metadata_by_feature: dict[str, dict[str, str]] = {}
+    part_rows: list[dict[str, Any]] = []
+    feature_count = 0
+
+    for chunk_index, chunk_dates in enumerate(chunks):
+        chunk_set = set(chunk_dates)
+        chunk_panel = panel.loc[pd.to_datetime(panel["formation_date"], errors="coerce").isin(chunk_set)].copy()
+        # CRSP momentum/reversal features need trailing panel context.  Other
+        # PIT families are filtered to this contextual window before as-of joins.
+        min_context_date = min(chunk_dates) - pd.DateOffset(months=18)
+        max_context_date = max(chunk_dates)
+        panel_dates = pd.to_datetime(panel["formation_date"], errors="coerce")
+        context_panel = panel.loc[panel_dates.between(min_context_date, max_context_date, inclusive="both")].copy()
+        built_frame, metadata = _merge_family_features(context_panel, active_families, resolved, required_by_family)
+        built_frame = built_frame.loc[pd.to_datetime(built_frame["formation_date"], errors="coerce").isin(chunk_set)].copy()
+        built_frame = built_frame.sort_values(["formation_date", "permno"]).reset_index(drop=True)
+        built_result = FeatureBuildResult(family="all", frame=built_frame, metadata=metadata)
+        records = feature_metadata_records(built_result)
+        for record in records:
+            metadata_by_feature[str(record["feature"])] = record
+        part_path = output_dir / f"part-{chunk_index:04d}_{min(chunk_dates).strftime('%Y%m')}_{max(chunk_dates).strftime('%Y%m')}.parquet"
+        built_frame.to_parquet(part_path, index=False)
+        feature_count = max(feature_count, len(records))
+        part_rows.append(
+            {
+                "path": str(part_path),
+                "rows": int(len(built_frame)),
+                "min_date": min(chunk_dates),
+                "max_date": max(chunk_dates),
+            }
+        )
+
+    metadata = [metadata_by_feature[key] for key in sorted(metadata_by_feature)]
+    metadata_path = output_dir / "monthly_features_metadata.json"
+    payload = {
+        "output_panel": str(output_dir),
+        "partitioned": True,
+        "chunk_months": int(args.feature_chunk_months),
+        "rows": int(sum(row["rows"] for row in part_rows)),
+        "row_cap": {"max_rows": int(args.max_rows), "mode": args.row_cap_mode},
+        "enabled_families": list(active_families),
+        "skipped_families": missing_by_family,
+        "feature_count": int(len(metadata) or feature_count),
+        "features": metadata,
+        "parts": part_rows,
+        "data_boundary": "local_offline_artifacts_only_no_wrds_login",
+    }
+    metadata_path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=_json_default), encoding="utf-8")
+    return {"feature_path": str(output_dir), "metadata_path": str(metadata_path), "rows": int(payload["rows"]), "feature_count": int(payload["feature_count"]), "partitioned": True}
+
+
 def run_features(args: argparse.Namespace) -> dict[str, Any]:
     config = load_simple_yaml(args.config)
     features_config = config.get("features", {}) if isinstance(config.get("features", {}), dict) else {}
@@ -463,39 +574,17 @@ def run_features(args: argparse.Namespace) -> dict[str, Any]:
         else:
             active_families.append(family)
 
-    # Load artifacts incrementally to keep peak memory manageable.
-    # Each family's required data is loaded just before building and
-    # released after merging, so we never hold all raw tables at once.
-    import gc
+    if args.partitioned:
+        return _run_features_partitioned(
+            panel=panel,
+            args=args,
+            active_families=active_families,
+            missing_by_family=missing_by_family,
+            resolved=resolved,
+            required_by_family=required_by_family,
+        )
 
-    from autoquant_lab.eqr.features.feature_registry import _registry
-
-    registry = _registry()
-    result = panel.copy()
-    all_metadata: list[dict[str, str]] = []
-
-    for family in active_families:
-        family_required = required_by_family.get(family, set())
-        family_inputs: dict[str, pd.DataFrame] = {}
-        for artifact_name in sorted(family_required):
-            frame = _artifact_frame(resolved, artifact_name)
-            if frame is not None:
-                family_inputs[artifact_name] = frame
-        # IBES target is optional and only needed for the ibes family.
-        if family == "ibes":
-            target = _artifact_frame(resolved, "ibes_target")
-            if target is not None:
-                family_inputs["ibes_target"] = target
-        family_inputs = _filter_feature_inputs_to_panel(family_inputs, panel)
-
-        built = registry[family](panel=panel, **family_inputs)
-        feature_columns = [col for col in built.frame.columns if col not in {"permno", "formation_date"}]
-        if feature_columns:
-            result = result.merge(built.frame, on=["permno", "formation_date"], how="left")
-            all_metadata.extend(built.metadata)
-
-        del family_inputs
-        gc.collect()
+    result, all_metadata = _merge_family_features(panel, active_families, resolved, required_by_family)
 
     # Validate metadata completeness.
     from autoquant_lab.eqr.features.result import FeatureBuildResult

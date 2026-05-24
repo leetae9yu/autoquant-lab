@@ -52,7 +52,7 @@ class SklearnRegressorModel(EQRModel):
         fit_X = X
         if isinstance(X, pd.DataFrame):
             usable_mask = np.asarray(X.notna().any(axis=0), dtype=bool)
-            self.usable_feature_names_ = [str(col) for col, has_value in zip(X.columns, usable_mask, strict=True) if has_value]
+            self.usable_feature_names_ = [str(col) for col, has_value in zip(X.columns, usable_mask) if has_value]
             fit_X = self._usable_frame(X)
         self.pipeline.fit(fit_X, np.asarray(y, dtype=float))
         return self
