@@ -333,6 +333,53 @@ def test_eqr_run_ddqm2_chunked_cli_matches_unchunked_returns(tmp_path: Path) -> 
     assert chunked_score_rows == len(pd.read_parquet(output_dir / "unit_full" / "factor_scores.parquet"))
 
 
+def test_eqr_run_ddqm2_chunked_stock_score_qspread_matches_unchunked_portfolio(tmp_path: Path) -> None:
+    panel_path = tmp_path / "panel.parquet"
+    feature_dir = tmp_path / "features"
+    output_dir = tmp_path / "ddqm2"
+    feature_dir.mkdir()
+    frame = _synthetic_panel(months=12, assets=20)
+    panel = frame[["formation_date", "permno", "permco", "exchcd", "ret_1m_fwd"]].copy()
+    features = frame.drop(columns=["permco", "ret_1m_fwd"])
+    panel.to_parquet(panel_path, index=False)
+    features.to_parquet(feature_dir / "features.parquet", index=False)
+
+    common_args = [
+        sys.executable,
+        "scripts/eqr_run_ddqm2.py",
+        "--panel",
+        str(panel_path),
+        "--feature-dir",
+        str(feature_dir),
+        "--output-dir",
+        str(output_dir),
+        "--model",
+        "baseline_mean",
+        "--min-observations",
+        "6",
+        "--portfolio-surface",
+        "stock_score_qspread_ddqm2",
+    ]
+    subprocess.run(
+        [*common_args, "--run-id", "unit_qspread_full", "--factor-score-chunk-dates", "0"],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [*common_args, "--run-id", "unit_qspread_chunked", "--factor-score-chunk-dates", "3"],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+
+    full_portfolio = pd.read_parquet(output_dir / "unit_qspread_full" / "portfolio_returns.parquet")
+    chunked_portfolio = pd.read_parquet(output_dir / "unit_qspread_chunked" / "portfolio_returns.parquet")
+    pd.testing.assert_frame_equal(full_portfolio, chunked_portfolio)
+
+
 def test_eqr_run_ddqm2_cli_writes_report_with_sparse_holdout_metrics(tmp_path: Path) -> None:
     panel_path = tmp_path / "panel.parquet"
     feature_dir = tmp_path / "features"

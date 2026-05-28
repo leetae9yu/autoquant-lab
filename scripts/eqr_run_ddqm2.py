@@ -565,6 +565,120 @@ def _backtest_long_only_from_score_parts(
     return portfolio.sort_values("formation_date").reset_index(drop=True), pd.DataFrame(leg_rows)
 
 
+def _backtest_qspread_from_score_parts(
+    allocations: pd.DataFrame,
+    score_dir: Path,
+    panel: pd.DataFrame,
+    *,
+    selected_factor_ids: set[str],
+    return_column: str,
+    quantile: float,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Backtest long/short QSpread from chunked factor-score parts.
+
+    The in-memory ``backtest_stock_score_qspread`` path is fine for capped
+    panels, but the full 2.08M-row panel can produce tens of millions of
+    stock-factor rows.  This streaming variant keeps the existing
+    stock-score/QSpread semantics while only materializing one score part at a
+    time.
+    """
+
+    empty_portfolio = pd.DataFrame(
+        {
+            "formation_date": pd.Series(dtype="datetime64[ns]"),
+            "split": pd.Series(dtype="object"),
+            "portfolio_return": pd.Series(dtype="float64"),
+            "cumulative_return": pd.Series(dtype="float64"),
+        }
+    )
+    if allocations.empty:
+        return empty_portfolio, pd.DataFrame()
+    required = {"formation_date", "permno", return_column}
+    missing = sorted(required.difference(panel.columns))
+    if missing:
+        raise ValueError(f"panel is missing QSpread return columns: {missing}")
+
+    weights = allocations.loc[:, ["formation_date", "factor_id", "weight", "split"]].copy()
+    weights["formation_date"] = pd.to_datetime(weights["formation_date"], errors="coerce")
+    realized = panel.loc[:, ["formation_date", "permno", return_column]].copy().rename(columns={return_column: "forward_return"})
+    realized["formation_date"] = pd.to_datetime(realized["formation_date"], errors="coerce")
+
+    rows: list[dict[str, Any]] = []
+    leg_rows: list[dict[str, Any]] = []
+    previous_by_split: dict[str, tuple[set[Any], set[Any]]] = {}
+
+    for path in sorted(score_dir.glob("part-*.parquet")):
+        scores = pd.read_parquet(path, columns=["formation_date", "permno", "factor_id", "factor_score"])
+        scores = scores.loc[scores["factor_id"].astype(str).isin(selected_factor_ids)].copy()
+        if scores.empty:
+            continue
+        scores["formation_date"] = pd.to_datetime(scores["formation_date"], errors="coerce")
+        dates = set(scores["formation_date"].dropna().unique())
+        chunk_weights = weights.loc[weights["formation_date"].isin(dates)].copy()
+        if chunk_weights.empty:
+            continue
+        merged = scores.merge(chunk_weights, on=["formation_date", "factor_id"], how="inner")
+        if merged.empty:
+            continue
+        merged["weighted_factor_score"] = pd.to_numeric(merged["factor_score"], errors="coerce") * pd.to_numeric(merged["weight"], errors="coerce")
+        stock_scores = merged.groupby(["formation_date", "permno", "split"], as_index=False).agg(
+            stock_score=("weighted_factor_score", "sum"),
+            factors_used=("factor_id", "nunique"),
+            max_factor_weight=("weight", "max"),
+            herfindahl_weight=("weight", lambda values: float(np.square(pd.to_numeric(values, errors="coerce").fillna(0.0)).sum())),
+        )
+        stock_scores = stock_scores.merge(realized.loc[realized["formation_date"].isin(dates)], on=["formation_date", "permno"], how="left")
+        for (formation_date, split), group in stock_scores.groupby(["formation_date", "split"], sort=True):
+            clean = group.dropna(subset=["stock_score", "forward_return"]).copy()
+            if clean.empty:
+                continue
+            split_key = str(split)
+            prev_long, prev_short = previous_by_split.get(split_key, (set(), set()))
+            long_cut = clean["stock_score"].quantile(1.0 - quantile)
+            short_cut = clean["stock_score"].quantile(quantile)
+            long_leg = clean.loc[clean["stock_score"] >= long_cut]
+            short_leg = clean.loc[clean["stock_score"] <= short_cut]
+            long_set = set(long_leg["permno"].tolist())
+            short_set = set(short_leg["permno"].tolist())
+            long_turnover = _position_turnover(prev_long, long_set)
+            short_turnover = _position_turnover(prev_short, short_set)
+            previous_by_split[split_key] = (long_set, short_set)
+            portfolio_return = float(long_leg["forward_return"].mean() - short_leg["forward_return"].mean()) if not long_leg.empty and not short_leg.empty else np.nan
+            rows.append(
+                {
+                    "formation_date": formation_date,
+                    "split": split,
+                    "portfolio_return": portfolio_return,
+                    "long_count": int(len(long_leg)),
+                    "short_count": int(len(short_leg)),
+                    "long_turnover": long_turnover,
+                    "short_turnover": short_turnover,
+                    "turnover": float(np.nanmean([long_turnover, short_turnover])),
+                    "max_factor_weight": float(clean["max_factor_weight"].max()),
+                    "mean_herfindahl_weight": float(clean["herfindahl_weight"].mean()),
+                }
+            )
+            for leg_name, leg in (("long", long_leg), ("short", short_leg)):
+                leg_rows.extend(
+                    {
+                        "formation_date": formation_date,
+                        "split": split,
+                        "leg": leg_name,
+                        "permno": row.permno,
+                        "stock_score": row.stock_score,
+                        "forward_return": row.forward_return,
+                    }
+                    for row in leg.itertuples(index=False)
+                )
+
+    portfolio = pd.DataFrame(rows)
+    if portfolio.empty:
+        return empty_portfolio, pd.DataFrame(leg_rows)
+    portfolio = portfolio.sort_values(["split", "formation_date"]).reset_index(drop=True)
+    portfolio["cumulative_return"] = portfolio.groupby("split", group_keys=False)["portfolio_return"].transform(lambda returns: (1.0 + returns.fillna(0.0)).cumprod() - 1.0)
+    return portfolio.sort_values("formation_date").reset_index(drop=True), pd.DataFrame(leg_rows)
+
+
 def _position_turnover(previous: set[Any], current: set[Any]) -> float:
     if not current:
         return 0.0
@@ -730,7 +844,7 @@ def main() -> int:
         raise ValueError(f"Factor universe produced no runnable factors: {factor_universe}")
     metadata = selected_metadata if not selected_metadata.empty else metadata.loc[metadata["factor_id"].isin(selected_factor_ids)].copy()
     factor_returns = factor_returns.loc[factor_returns["factor_id"].isin(selected_factor_ids)].copy()
-    if portfolio_surface == "stock_score_qspread_ddqm2":
+    if portfolio_surface == "stock_score_qspread_ddqm2" and factor_score_artifacts != ["factor_scores/"]:
         factor_scores = _load_selected_factor_scores(run_dir, factor_score_artifacts, selected_factor_ids)
     elif not factor_scores.empty:
         factor_scores = factor_scores.loc[factor_scores["factor_id"].isin(selected_factor_ids)].copy()
@@ -752,7 +866,17 @@ def main() -> int:
         portfolio = backtest_factor_allocations(allocations, factor_returns)
         qspread_legs = pd.DataFrame()
     elif portfolio_surface == "stock_score_qspread_ddqm2":
-        portfolio, qspread_legs = backtest_stock_score_qspread(allocations, factor_scores, panel, return_column=args.return_column, quantile=quantile)
+        if factor_scores.empty and factor_score_artifacts == ["factor_scores/"]:
+            portfolio, qspread_legs = _backtest_qspread_from_score_parts(
+                allocations,
+                run_dir / "factor_scores",
+                panel,
+                selected_factor_ids=selected_factor_ids,
+                return_column=args.return_column,
+                quantile=quantile,
+            )
+        else:
+            portfolio, qspread_legs = backtest_stock_score_qspread(allocations, factor_scores, panel, return_column=args.return_column, quantile=quantile)
     elif portfolio_surface == "stock_score_long_only_qspread":
         if factor_scores.empty and factor_score_artifacts == ["factor_scores/"]:
             portfolio, qspread_legs = _backtest_long_only_from_score_parts(

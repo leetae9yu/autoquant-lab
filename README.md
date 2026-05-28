@@ -37,6 +37,24 @@ Quantile `q` is intentionally left as a research axis:
 - q=0.10 is the DDQM2-reference decile construction.
 - q=0.20 and q=0.30 are U.S. adaptation settings for wider, more diversified legs.
 
+## Panel caps and full-panel runs
+
+Earlier 1.25M-row DDQM2 reports used a `date-balanced` prepared-panel cap. In
+this repository, `date-balanced` means **formation-date-balanced row capping**:
+the cap is spread approximately evenly across monthly `formation_date` values,
+with any remainder assigned round-robin by date. Within each month the
+deterministic order is `formation_date, permno`.
+
+That cap preserves the full 1990-2024 research window, but it is not
+sector-balanced, liquidity-balanced, or market-cap-balanced. It changes the
+monthly cross-section relative to the full local artifact.
+
+The full-panel track uses the existing local chunked artifact instead:
+`experiments/prepared/features_full_chunked/`, with 2,082,485 prepared rows.
+Full-panel experiments must keep the same walk-forward OOS protocol as the
+source-controlled DDQM2 reports unless a report explicitly labels a different
+protocol.
+
 See the final DDQM2 matrix reports:
 
 - [Korean report](reports/usa_ddqm2_matrix_report_ko.md)
@@ -48,6 +66,13 @@ Latest additive long-only QSpread analysis:
 - [Korean v2 translation](reports/long_only_qspread_ml_costs_full_chunked_analysis_v2_ko.md)
 - Prior v1 reports: [English](reports/long_only_qspread_ml_costs_full_chunked_analysis_en.md), [Korean](reports/long_only_qspread_ml_costs_full_chunked_analysis_ko.md)
 - [Reproducibility ledger](reports/long_only_qspread_ml_costs_full_chunked_ledger.json)
+
+Latest additive full-panel long/short QSpread analysis:
+
+- [English analysis report](reports/full_long_short_qspread_full_chunked_analysis_en.md)
+- [Korean translation](reports/full_long_short_qspread_full_chunked_analysis_ko.md)
+- [Matrix report](reports/full_long_short_qspread_full_chunked_report.md)
+- [Reproducibility ledger](reports/full_long_short_qspread_full_chunked_ledger.json)
 
 ## Walk-forward timing and rebalancing
 
@@ -149,6 +174,19 @@ PYTHONPATH=src:. python scripts/eqr_run_long_only_matrix.py \
   --ledger reports/long_only_qspread_ml_costs_full_chunked_ledger.json
 ```
 
+Run the additive full-panel long/short QSpread matrix sequentially. This harness
+is intentionally single-heavy-run-at-a-time for small-memory machines; it skips
+existing manifests and appends/regenerates compact report artifacts from local
+run directories:
+
+```bash
+PYTHONPATH=src:. python scripts/eqr_run_full_long_short_matrix.py \
+  --run-prefix full_long_short_full_chunked_YYYYMMDD \
+  --output-dir experiments/ddqm2_full_long_short \
+  --report reports/full_long_short_qspread_full_chunked_report.md \
+  --ledger reports/full_long_short_qspread_full_chunked_ledger.json
+```
+
 Run focused tests:
 
 ```bash
@@ -157,7 +195,7 @@ PYTHONPATH=src:. python -m pytest tests/test_ddqm2_ablation_plan.py tests/test_f
 
 ## Research status
 
-The repository now has two source-controlled report families:
+The repository now has three source-controlled report families:
 
 1. **Existing USA-DDQM2 long/short matrix**
    - q=0.10, q=0.20, and q=0.30 DDQM2-style stock-score QSpread runs.
@@ -177,6 +215,20 @@ Headline interpretation from the latest long-only v2 report:
 - Extra Trees and Random Forest are the strongest non-baseline ML runs at q=0.30; LightGBM has strong gross performance but higher turnover drag.
 - The key research result is the gap between gross and conservative net outcomes, not the gross headline alone.
 
+3. **Additive full-panel long/short QSpread ML matrix**
+   - Full local chunked panel: 2,082,485 prepared rows.
+   - 18 successful runs: six model families across q=0.10, q=0.20, and q=0.30.
+   - Sequential execution policy: one heavy run at a time; no OMX team/swarm parallel experiment execution.
+   - Walk-forward OOS protocol preserved from the DDQM2 reports.
+   - Reports: [`full_long_short_qspread_full_chunked_analysis_en.md`](reports/full_long_short_qspread_full_chunked_analysis_en.md), [`full_long_short_qspread_full_chunked_analysis_ko.md`](reports/full_long_short_qspread_full_chunked_analysis_ko.md).
+
+Headline interpretation from the latest full-panel long/short report:
+
+- The best gross row is Random Forest q=0.10: CAGR 31.45%, MDD -34.86%, turnover 75.90%.
+- LightGBM q=0.10 and Extra Trees q=0.10 closely confirm the tree-model result.
+- The larger 2.08M-row panel does not collapse the prior 1.25M date-balanced DDQM2 shape; the best full-panel row is slightly above the prior q=0.20 CAGR anchor.
+- Conservative cost/borrow/slippage/tax-proxy sensitivity materially compresses the result, so the correct conclusion is “research signal remains worth studying,” not “production strategy is ready.”
+
 These are research backtests. They do not fully model slippage, market impact, capacity, tax-lot accounting, borrow constraints, or production tradability. The tax proxy is not tax advice.
 
 ## Verification
@@ -185,9 +237,13 @@ Recent checks used during the long-only QSpread completion:
 
 ```text
 PYTHONPATH=src:. .venv/bin/python -m pytest -q
-153 passed, 54 warnings
+157 passed, 54 warnings
 
 Full long-only matrix
+18 runs, 0 failures
+Data boundary: local artifacts only; no WRDS login; no runtime external data
+
+Full long/short matrix
 18 runs, 0 failures
 Data boundary: local artifacts only; no WRDS login; no runtime external data
 ```
