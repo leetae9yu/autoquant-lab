@@ -1,6 +1,7 @@
 from __future__ import annotations
 # pyright: reportMissingImports=false, reportMissingTypeStubs=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportCallIssue=false, reportUnusedCallResult=false
 
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -461,6 +462,64 @@ def test_eqr_run_ddqm2_chunked_stock_score_qspread_matches_unchunked_portfolio(t
     full_portfolio = pd.read_parquet(output_dir / "unit_qspread_full" / "portfolio_returns.parquet")
     chunked_portfolio = pd.read_parquet(output_dir / "unit_qspread_chunked" / "portfolio_returns.parquet")
     pd.testing.assert_frame_equal(full_portfolio, chunked_portfolio)
+
+
+def test_eqr_run_ddqm2_storage_light_drops_only_factor_scores(tmp_path: Path) -> None:
+    panel_path = tmp_path / "panel.parquet"
+    feature_dir = tmp_path / "features"
+    output_dir = tmp_path / "ddqm2"
+    feature_dir.mkdir()
+    frame = _synthetic_panel(months=12, assets=20)
+    panel = frame[["formation_date", "permno", "permco", "exchcd", "ret_1m_fwd"]].copy()
+    features = frame.drop(columns=["permco", "ret_1m_fwd"])
+    panel.to_parquet(panel_path, index=False)
+    features.to_parquet(feature_dir / "features.parquet", index=False)
+
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/eqr_run_ddqm2.py",
+            "--panel",
+            str(panel_path),
+            "--feature-dir",
+            str(feature_dir),
+            "--output-dir",
+            str(output_dir),
+            "--model",
+            "baseline_mean",
+            "--run-id",
+            "unit_storage_light",
+            "--min-observations",
+            "6",
+            "--portfolio-surface",
+            "stock_score_qspread_ddqm2",
+            "--factor-score-chunk-dates",
+            "3",
+            "--drop-factor-scores-after-run",
+        ],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+
+    run_dir = output_dir / "unit_storage_light"
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert not (run_dir / "factor_scores").exists()
+    assert manifest["storage_policy"]["drop_factor_scores_after_run"] is True
+    assert manifest["storage_policy"]["pruned_factor_score_artifacts"] == ["factor_scores/"]
+    for name in (
+        "factor_metadata.csv",
+        "factor_returns.parquet",
+        "factor_predictions.parquet",
+        "factor_model_metrics.csv",
+        "factor_allocations.parquet",
+        "portfolio_returns.parquet",
+        "portfolio_summary.json",
+        "report.md",
+        "manifest.json",
+    ):
+        assert (run_dir / name).exists()
 
 
 def test_eqr_run_ddqm2_cli_writes_report_with_sparse_holdout_metrics(tmp_path: Path) -> None:

@@ -37,6 +37,30 @@ def test_full_long_short_command_preserves_walk_forward_surface(tmp_path: Path) 
     assert command[command.index("--walk-forward-validation-periods") + 1] == "12"
     assert command[command.index("--factor-score-chunk-dates") + 1] == "12"
     assert command[command.index("--feature-dir") + 1].endswith("features_full_chunked")
+    assert "--drop-factor-scores-after-run" not in command
+
+
+def test_full_long_short_command_can_enable_storage_light_child_run(tmp_path: Path) -> None:
+    args = harness.parse_args(
+        [
+            "--ledger",
+            str(tmp_path / "ledger.json"),
+            "--report",
+            str(tmp_path / "report.md"),
+            "--output-dir",
+            str(tmp_path / "runs"),
+            "--models",
+            "baseline_mean",
+            "--quantiles",
+            "0.30",
+            "--drop-factor-scores-after-run",
+            "--dry-run",
+        ]
+    )
+    spec = harness.run_specs(args)[0]
+    command = harness.build_command(args, spec, "unit_storage_light")
+
+    assert "--drop-factor-scores-after-run" in command
 
 
 def test_factor_router_axes_expand_and_build_exact_runner_mapping(tmp_path: Path) -> None:

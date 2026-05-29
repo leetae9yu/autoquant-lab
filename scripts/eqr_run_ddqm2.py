@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import shutil
 import sys
 from typing import Any
 
@@ -80,6 +81,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-params-json", default=None, help="JSON object of model hyperparameter overrides for research sweeps.")
     parser.add_argument("--transaction-cost-bps", type=float, default=None, help="Long-only QSpread one-way turnover cost in basis points.")
     parser.add_argument("--tax-rate", type=float, default=None, help="Long-only QSpread simplified tax drag rate on positive gains realized by turnover.")
+    parser.add_argument(
+        "--drop-factor-scores-after-run",
+        action="store_true",
+        help=(
+            "After portfolio artifacts are written, remove large factor-score "
+            "intermediate parquet files from this run directory and record the "
+            "storage-light policy in the manifest. Completed reports, metrics, "
+            "allocations, portfolio returns, and leg artifacts are preserved."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -758,6 +769,31 @@ def _write_report(run_dir: Path, manifest: dict[str, Any], metrics: pd.DataFrame
     (run_dir / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+def _drop_factor_score_artifacts(run_dir: Path, factor_score_artifacts: list[str]) -> list[str]:
+    """Remove only this run's large factor-score intermediates.
+
+    The full-panel stock-score QSpread path needs factor-score parquet files
+    while the portfolio and leg artifacts are being built, but those files are
+    reproducible from the immutable local feature/panel inputs and dominate disk
+    usage.  This storage-light cleanup intentionally scopes deletion to the
+    current freshly-created run directory and leaves reports, manifests, factor
+    returns, allocations, portfolio returns, and qspread legs intact.
+    """
+
+    removed: list[str] = []
+    for artifact in factor_score_artifacts:
+        path = run_dir / artifact
+        if artifact.endswith("/") or path.is_dir():
+            path = run_dir / artifact.rstrip("/")
+            if path.exists():
+                shutil.rmtree(path)
+                removed.append(artifact)
+        elif path.exists():
+            path.unlink()
+            removed.append(artifact)
+    return removed
+
+
 def _factor_diagnostics(allocations: pd.DataFrame, predictions: pd.DataFrame, metrics: pd.DataFrame) -> pd.DataFrame:
     """Summarize model-specific factor behavior for report comparison."""
 
@@ -931,6 +967,7 @@ def main() -> int:
     if not qspread_legs.empty:
         qspread_legs.to_parquet(run_dir / "qspread_legs.parquet", index=False)
     (run_dir / "portfolio_summary.json").write_text(json.dumps(portfolio_summary, indent=2, default=_json_default), encoding="utf-8")
+    pruned_factor_score_artifacts = _drop_factor_score_artifacts(run_dir, factor_score_artifacts) if args.drop_factor_scores_after_run else []
 
     manifest = {
         "run_id": run_id,
@@ -966,6 +1003,22 @@ def main() -> int:
             "research_only_not_tax_advice": True,
         },
         "factor_score_chunk_dates": factor_score_chunk_dates,
+        "storage_policy": {
+            "drop_factor_scores_after_run": bool(args.drop_factor_scores_after_run),
+            "pruned_factor_score_artifacts": pruned_factor_score_artifacts,
+            "preserved_research_artifacts": [
+                "factor_metadata.csv",
+                "factor_returns.parquet",
+                "factor_predictions.parquet",
+                "factor_model_metrics.csv",
+                "factor_allocations.parquet",
+                "portfolio_returns.parquet",
+                *([] if qspread_legs.empty else ["qspread_legs.parquet"]),
+                "portfolio_summary.json",
+                "report.md",
+                "manifest.json",
+            ],
+        },
         "panel_rows": int(len(panel)),
         "feature_rows": int(len(features)),
         "factor_score_rows": factor_score_rows,
@@ -975,7 +1028,7 @@ def main() -> int:
         "portfolio_summary": portfolio_summary,
         "split_portfolio_summary": split_portfolio_summary,
         "artifacts": [
-            *factor_score_artifacts,
+            *([] if pruned_factor_score_artifacts else factor_score_artifacts),
             "factor_metadata.csv",
             "factor_returns.parquet",
             "factor_predictions.parquet",

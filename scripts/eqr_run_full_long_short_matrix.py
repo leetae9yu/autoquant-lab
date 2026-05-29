@@ -104,6 +104,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sequential-plan", type=Path, default=None, help="Optional additive sequential full-run plan artifact path.")
     parser.add_argument("--continue-on-error", action="store_true", default=False)
     parser.add_argument(
+        "--drop-factor-scores-after-run",
+        action="store_true",
+        help=(
+            "Pass storage-light cleanup to the child DDQM2 runner: after a run "
+            "finishes, remove only that run's large factor-score intermediate "
+            "parquet files and preserve reports, manifests, portfolio returns, "
+            "qspread legs, and diagnostics."
+        ),
+    )
+    parser.add_argument(
         "--execute-heavy-experiments",
         action="store_true",
         help=(
@@ -325,6 +335,8 @@ def build_command(args: argparse.Namespace, spec: dict[str, Any], run_id: str) -
         command.extend(["--category-cap", str(spec["category_cap"])])
     if args.min_observations is not None:
         command.extend(["--min-observations", str(args.min_observations)])
+    if args.drop_factor_scores_after_run:
+        command.append("--drop-factor-scores-after-run")
     params = spec.get("model_params") or {}
     if params:
         command.extend(["--model-params-json", json.dumps(params, sort_keys=True)])
@@ -929,6 +941,11 @@ def run_matrix(args: argparse.Namespace, prefix: str) -> list[dict[str, Any]]:
             "command": command,
             "data_boundary": DATA_BOUNDARY,
             "cloud_policy": NO_CLOUD_POLICY,
+            "storage_policy": {
+                "drop_factor_scores_after_run": bool(args.drop_factor_scores_after_run),
+                "scope": "future_child_run_directory_only",
+                "preserves_existing_experiment_outputs": True,
+            },
             "advice_boundary": RESEARCH_ONLY_DISCLAIMER,
             "changed_axes": changed_axes_from_spec(spec),
             "required_interpretability_evidence": list(REQUIRED_INTERPRETABILITY_EVIDENCE),
@@ -1045,6 +1062,11 @@ def main() -> int:
         "artifact_no_overwrite_policy": ARTIFACT_NO_OVERWRITE_POLICY,
         "advice_boundary": RESEARCH_ONLY_DISCLAIMER,
         "cloud_policy": NO_CLOUD_POLICY,
+        "storage_policy": {
+            "drop_factor_scores_after_run": bool(args.drop_factor_scores_after_run),
+            "scope": "future_child_run_directory_only",
+            "preserves_existing_experiment_outputs": True,
+        },
         "run_specs": run_specs(args),
         "matrix_runs": [],
     }

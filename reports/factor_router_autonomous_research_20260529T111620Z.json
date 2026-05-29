@@ -1,0 +1,1524 @@
+{
+  "started_utc": "20260529T111620Z",
+  "constraints": [
+    "no_wrds_login",
+    "local_artifacts_only",
+    "no_external_new_raw_data",
+    "no_cloud_auto_provision",
+    "no_parallel_heavy_runs",
+    "no_overwrite_existing_outputs",
+    "research_diagnostics_only",
+    "disk_available_le_2gb_stop_heavy_runs"
+  ],
+  "termination_rule": "stop_on_user_request_or_5_consecutive_non_progress_hypotheses_or_disk_available_le_2gb",
+  "runs": [
+    {
+      "sequence": 1,
+      "hypothesis_id": "selected-factor-count-7",
+      "started_at": "2026-05-29T11:16:20.832299+00:00",
+      "finished_at": "2026-05-29T11:27:02.393904+00:00",
+      "ledger": "reports/factor_router_seq_1_selected-factor-count-7_20260529T111620Z.json",
+      "report": "reports/factor_router_seq_1_selected-factor-count-7_20260529T111620Z.md",
+      "run_id": "factor_router_seq_1_selected-factor-count-7_20260529T111620Z_baseline_mean_q30_n7_polselected_13_global_local_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "guardrails": {
+        "no_wrds_login": true,
+        "no_external_data": true,
+        "no_new_raw_data": true,
+        "no_team_or_swarm_experiment_execution": true,
+        "single_heavy_experiment_at_a_time": true,
+        "additive_outputs_only": true,
+        "no_cloud_or_oci_auto_provisioning": true,
+        "not_investment_trading_legal_tax_or_production_advice": true
+      },
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 11.282145490405957,
+        "cagr": 0.08175446572423462,
+        "max_drawdown": -0.2951343535872675,
+        "turnover": 0.11300168716168184,
+        "long_turnover": 0.11848403503556586,
+        "short_turnover": 0.10751933928779783,
+        "max_factor_weight": 0.25063896141612874,
+        "mean_herfindahl_weight": 0.1773745607350015
+      },
+      "anchor_delta": {
+        "cumulative_return": -1.2735939192367969,
+        "cagr": -0.00334918178484922,
+        "max_drawdown": 0.1355847315321307,
+        "turnover": -0.039420063130689756
+      },
+      "progress": true,
+      "progress_reasons": [
+        "materially lower MDD than N=13 anchor",
+        "materially lower turnover than N=13 anchor",
+        "child manifest data-boundary now matches harness boundary"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "N=7 reduces concentration breadth and gives up some cumulative return/CAGR versus N=13, but substantially improves OOS max drawdown and turnover. Treat as a useful risk/implementation-efficiency branch, not an outright replacement because tax-proxy rows and missing factor/leg diagnostics still require follow-up.",
+      "next_hypothesis": "Run local-only under the same walk-forward OOS protocol to isolate local-state factor families and compare whether the drawdown/turnover improvement comes from local versus global factor composition."
+    },
+    {
+      "sequence": 2,
+      "hypothesis_id": "local-only",
+      "started_at": "2026-05-29T11:28:02.170993+00:00",
+      "finished_at": "2026-05-29T11:38:53.114754+00:00",
+      "ledger": "reports/factor_router_seq_2_local-only_20260529T112801Z.json",
+      "report": "reports/factor_router_seq_2_local-only_20260529T112801Z.md",
+      "run_id": "factor_router_seq_2_local-only_20260529T112801Z_baseline_mean_q30_n13_pollocal_only_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "guardrails": {
+        "no_wrds_login": true,
+        "no_external_data": true,
+        "no_new_raw_data": true,
+        "no_team_or_swarm_experiment_execution": true,
+        "single_heavy_experiment_at_a_time": true,
+        "additive_outputs_only": true,
+        "no_cloud_or_oci_auto_provisioning": true,
+        "not_investment_trading_legal_tax_or_production_advice": true
+      },
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 34.78233840928655,
+        "cagr": 0.11861056153100558,
+        "max_drawdown": -0.33241501687027764,
+        "turnover": 0.43462293303857824,
+        "long_turnover": 0.4465190744783555,
+        "short_turnover": 0.42272679159880083,
+        "max_factor_weight": 0.1936039486227294,
+        "mean_herfindahl_weight": 0.11366742833644772
+      },
+      "anchor_delta": {
+        "cumulative_return": 22.226598999643798,
+        "cagr": 0.03350691402192174,
+        "max_drawdown": 0.09830406824912052,
+        "turnover": 0.28220118274620665
+      },
+      "progress": true,
+      "progress_reasons": [
+        "materially higher cumulative return than anchor",
+        "higher CAGR than anchor",
+        "lower MDD than anchor"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "Local-only strongly improves gross OOS return/CAGR versus the selected-13 anchor while also improving MDD, but it carries much higher turnover. This makes local-state factors promising for alpha, while implementation realism/cost sensitivity must be checked before any preference.",
+      "next_hypothesis": "Run global-only under the same protocol to complete the local/global isolation pair and determine whether global-return families are diversifying, return-generating, or mostly dilutive relative to local-only."
+    },
+    {
+      "sequence": 3,
+      "hypothesis_id": "global-only",
+      "started_at": "2026-05-29T11:39:40.158870+00:00",
+      "finished_at": "2026-05-29T11:50:10.848839+00:00",
+      "ledger": "reports/factor_router_seq_3_global-only_20260529T113939Z.json",
+      "report": "reports/factor_router_seq_3_global-only_20260529T113939Z.md",
+      "run_id": "factor_router_seq_3_global-only_20260529T113939Z_baseline_mean_q30_n13_polglobal_only_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "guardrails": {
+        "no_wrds_login": true,
+        "no_external_data": true,
+        "no_new_raw_data": true,
+        "no_team_or_swarm_experiment_execution": true,
+        "single_heavy_experiment_at_a_time": true,
+        "additive_outputs_only": true,
+        "no_cloud_or_oci_auto_provisioning": true,
+        "not_investment_trading_legal_tax_or_production_advice": true
+      },
+      "metrics": {
+        "periods": 382,
+        "cumulative_return": 5.323066470954169,
+        "cagr": 0.059644123395552695,
+        "max_drawdown": -0.593488699830446,
+        "turnover": 0.19981469401472146,
+        "long_turnover": 0.2532550584184857,
+        "short_turnover": 0.14637432961095717,
+        "max_factor_weight": 0.24658565104391772,
+        "mean_herfindahl_weight": 0.1384364031695319
+      },
+      "anchor_delta": {
+        "cumulative_return": -7.2326729386885855,
+        "cagr": -0.02545952411353114,
+        "max_drawdown": -0.1627696147110479,
+        "turnover": 0.04739294372234987
+      },
+      "local_delta": {
+        "cumulative_return": -29.459271938332385,
+        "cagr": -0.05896643813545288,
+        "max_drawdown": -0.2610736829601684,
+        "turnover": -0.23480823902385678
+      },
+      "progress": true,
+      "progress_reasons": [
+        "completed local/global isolation pair; global-only is materially weaker than local-only, narrowing the next search toward local-heavy or quota designs",
+        "identified worse drawdown risk in global-only branch"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "Global-only is much weaker than local-only and weaker than the selected-13 anchor on gross return and MDD. This supports the hypothesis that local-state factors carry most of the useful signal in this full-panel QSpread setup; global factors may be useful only as constrained diversifiers, not as a standalone universe.",
+      "next_hypothesis": "Run quota 6:7 to test whether a forced global/local blend can preserve part of local-only return while controlling turnover/drawdown better than pure local-only."
+    },
+    {
+      "sequence": 4,
+      "hypothesis_id": "quota-policy-6-7",
+      "started_at": "2026-05-29T11:50:55.405594+00:00",
+      "finished_at": "2026-05-29T12:01:36.054910+00:00",
+      "ledger": "reports/factor_router_seq_4_quota-policy_20260529T115054Z.json",
+      "report": "reports/factor_router_seq_4_quota-policy_20260529T115054Z.md",
+      "run_id": "factor_router_seq_4_quota-policy_20260529T115054Z_baseline_mean_q30_n13_polquota_quota6x7_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "guardrails": {
+        "no_wrds_login": true,
+        "no_external_data": true,
+        "no_new_raw_data": true,
+        "no_team_or_swarm_experiment_execution": true,
+        "single_heavy_experiment_at_a_time": true,
+        "additive_outputs_only": true,
+        "no_cloud_or_oci_auto_provisioning": true,
+        "not_investment_trading_legal_tax_or_production_advice": true
+      },
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 16.705906653746197,
+        "cagr": 0.09422222135329217,
+        "max_drawdown": -0.35192039305951095,
+        "turnover": 0.16206117598409794,
+        "long_turnover": 0.1718973162057136,
+        "short_turnover": 0.1522250357624823,
+        "max_factor_weight": 0.1893307052664691,
+        "mean_herfindahl_weight": 0.11247690597704683
+      },
+      "anchor_delta": {
+        "cumulative_return": 4.150167244103443,
+        "cagr": 0.009118573844208333,
+        "max_drawdown": 0.07879869205988721,
+        "turnover": 0.00963942569172635
+      },
+      "local_delta": {
+        "cumulative_return": -18.076431755540355,
+        "cagr": -0.024388340177713408,
+        "max_drawdown": -0.019505376189233314,
+        "turnover": -0.27256175705448027
+      },
+      "progress": true,
+      "progress_reasons": [
+        "higher cumulative return than anchor",
+        "higher CAGR than anchor",
+        "lower MDD than anchor",
+        "much lower turnover than local-only while retaining positive return lift over anchor"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "The 6:7 quota branch is a useful middle ground: it beats the selected-13 anchor on gross return/CAGR and MDD, and it sharply reduces turnover versus local-only. It does not dominate local-only on return, so it is best framed as a balanced implementation-realism branch.",
+      "next_hypothesis": "Run category cap=3 to test whether reducing family concentration improves drawdown/turnover without sacrificing too much of the local-heavy gross signal."
+    },
+    {
+      "sequence": 5,
+      "hypothesis_id": "family-cap-policy-cap3-retry",
+      "started_at": "2026-05-29T12:07:07.963466+00:00",
+      "finished_at": "2026-05-29T12:18:00.453072+00:00",
+      "ledger": "reports/factor_router_seq_5_family-cap-policy_retry_20260529T120707Z.json",
+      "report": "reports/factor_router_seq_5_family-cap-policy_retry_20260529T120707Z.md",
+      "run_id": "factor_router_seq_5_family-cap-policy_retry_20260529T120707Z_baseline_mean_q30_n13_polcategory_capped_cap3_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "guardrails": {
+        "no_wrds_login": true,
+        "no_external_data": true,
+        "no_new_raw_data": true,
+        "no_team_or_swarm_experiment_execution": true,
+        "single_heavy_experiment_at_a_time": true,
+        "additive_outputs_only": true,
+        "no_cloud_or_oci_auto_provisioning": true,
+        "not_investment_trading_legal_tax_or_production_advice": true
+      },
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 27.302132066990797,
+        "cagr": 0.11042135772988004,
+        "max_drawdown": -0.3148121976629109,
+        "turnover": 0.5627218254272552,
+        "long_turnover": 0.5586444936929154,
+        "short_turnover": 0.566799157161595,
+        "max_factor_weight": 0.15264549908984226,
+        "mean_herfindahl_weight": 0.1052034055649816
+      },
+      "anchor_delta": {
+        "cumulative_return": 14.746392657348043,
+        "cagr": 0.025317710220796208,
+        "max_drawdown": 0.11590688745648725,
+        "turnover": 0.41030007513488365
+      },
+      "local_delta": {
+        "cumulative_return": -7.480206342295755,
+        "cagr": -0.008189203801125533,
+        "max_drawdown": 0.017602819207366727,
+        "turnover": 0.128098892388677
+      },
+      "quota_delta": {
+        "cumulative_return": 10.5962254132446,
+        "cagr": 0.016199136376587875,
+        "max_drawdown": 0.03710819539660004,
+        "turnover": 0.40066064944315727
+      },
+      "progress": true,
+      "progress_reasons": [
+        "higher cumulative return than anchor",
+        "higher CAGR than anchor",
+        "lower MDD than anchor",
+        "lower max factor weight / concentration than anchor"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "Category cap=3 is a high-return/high-turnover branch: it beats anchor and quota on gross return and MDD and lowers factor concentration, but its turnover exceeds local-only. It is research-useful for factor-family diversification diagnostics, not immediately preferable on execution realism.",
+      "next_hypothesis": "Because disk capacity is now the binding resource, first add/report a storage-aware continuation note; then prioritize one-at-a-time q robustness on the most informative branches: local-only q=0.20/0.40 or quota q=0.20/0.40, unless storage-light harnessing is added."
+    },
+    {
+      "sequence": 6,
+      "hypothesis_id": "local-only-q40-storage-light",
+      "started_at": "2026-05-29T12:22:03.063605+00:00",
+      "finished_at": "2026-05-29T12:32:53.336631+00:00",
+      "ledger": "reports/factor_router_auto_6_local-only-q40_20260529T122202Z.json",
+      "report": "reports/factor_router_auto_6_local-only-q40_20260529T122202Z.md",
+      "run_id": "factor_router_auto_6_local-only-q40_20260529T122202Z_baseline_mean_q40_n13_pollocal_only_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "storage_policy": {
+        "drop_factor_scores_after_run": true,
+        "scope": "future_child_run_directory_only",
+        "preserves_existing_experiment_outputs": true
+      },
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 15.138968132275682,
+        "cagr": 0.09105004477017542,
+        "max_drawdown": -0.2721880014310749,
+        "turnover": 0.37282306166944323
+      },
+      "local_q30_delta": {
+        "cumulative_return": -19.64337027701087,
+        "cagr": -0.027560516760830156,
+        "max_drawdown": 0.060227015439202725,
+        "turnover": -0.06179987136913501
+      },
+      "progress": true,
+      "progress_reasons": [
+        "local-only q=0.40 materially lowers MDD versus local-only q=0.30",
+        "local-only q=0.40 lowers turnover versus local-only q=0.30"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "q=0.40 local-only trades off much lower cumulative/CAGR versus local-only q=0.30 for materially better drawdown and lower turnover; storage-light mode completed and reclaimed factor-score intermediates for this new run."
+    },
+    {
+      "sequence": 7,
+      "hypothesis_id": "local-only-q20-preserve-scores",
+      "started_at": "2026-05-29T13:27:56.942561+00:00",
+      "finished_at": "2026-05-29T13:38:54.676138+00:00",
+      "ledger": "reports/factor_router_auto_7_local-only-q20_20260529T132756Z.json",
+      "report": "reports/factor_router_auto_7_local-only-q20_20260529T132756Z.md",
+      "run_id": "factor_router_auto_7_local-only-q20_20260529T132756Z_baseline_mean_q20_n13_pollocal_only_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 76.77869138327571,
+        "cagr": 0.146155849367116,
+        "max_drawdown": -0.3917776998394573,
+        "turnover": 0.6387101835772051,
+        "long_turnover": 0.6360291616316658,
+        "short_turnover": 0.6413912055227444
+      },
+      "local_q30_delta": {
+        "cumulative_return": 41.99635297398916,
+        "cagr": 0.027545287836110433,
+        "max_drawdown": -0.05936268296917968,
+        "turnover": 0.20408725053862686
+      },
+      "local_q40_delta": {
+        "cumulative_return": 61.639723251000035,
+        "cagr": 0.05510580459694059,
+        "max_drawdown": -0.1195896984083824,
+        "turnover": 0.26588712190776187
+      },
+      "progress": true,
+      "progress_reasons": [
+        "local-only q=0.20 improves cumulative return versus q=0.30",
+        "local-only q=0.20 improves CAGR versus q=0.30"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "local-only q=0.20 completes the first local-only q robustness triangle with q=0.30 and q=0.40. It is preserved with factor_scores for dashboard-grade stock/factor drilldowns."
+    },
+    {
+      "sequence": 8,
+      "hypothesis_id": "quota-6-7-q20-preserve-scores",
+      "started_at": "2026-05-29T13:39:38.815525+00:00",
+      "finished_at": "2026-05-29T13:50:31.854714+00:00",
+      "ledger": "reports/factor_router_auto_8_quota-q20_20260529T133938Z.json",
+      "report": "reports/factor_router_auto_8_quota-q20_20260529T133938Z.md",
+      "run_id": "factor_router_auto_8_quota-q20_20260529T133938Z_baseline_mean_q20_n13_polquota_quota6x7_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 86.70169311645064,
+        "cagr": 0.15047592380352093,
+        "max_drawdown": -0.4116044113559577,
+        "turnover": 0.6509166995168775,
+        "long_turnover": 0.6428136548993012,
+        "short_turnover": 0.6590197441344536
+      },
+      "quota_q30_delta": {
+        "cumulative_return": 69.99578646270444,
+        "cagr": 0.05625370245022876,
+        "max_drawdown": -0.05968401829644676,
+        "turnover": 0.4888555235327795
+      },
+      "local_q20_delta": {
+        "cumulative_return": 9.923001733174928,
+        "cagr": 0.004320074436404919,
+        "max_drawdown": -0.019826711516500395,
+        "turnover": 0.012206515939672369
+      },
+      "progress": true,
+      "progress_reasons": [
+        "quota q=0.20 improves cumulative return versus quota q=0.30",
+        "quota q=0.20 improves CAGR versus quota q=0.30"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 6:7 q=0.20 tests whether the high-return q=0.20 tail can be kept while reducing local-only turnover/drawdown through constrained global/local blending."
+    },
+    {
+      "sequence": 9,
+      "hypothesis_id": "quota-6-7-q40-preserve-scores",
+      "started_at": "2026-05-29T13:51:16.395391+00:00",
+      "finished_at": "2026-05-29T14:02:21.955534+00:00",
+      "ledger": "reports/factor_router_auto_9_quota-q40_20260529T135115Z.json",
+      "report": "reports/factor_router_auto_9_quota-q40_20260529T135115Z.md",
+      "run_id": "factor_router_auto_9_quota-q40_20260529T135115Z_baseline_mean_q40_n13_polquota_quota6x7_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 9.512147869465453,
+        "cagr": 0.07649302625475252,
+        "max_drawdown": -0.3058841780945969,
+        "turnover": 0.14008388425032264,
+        "long_turnover": 0.1452216903031038,
+        "short_turnover": 0.13494607819754148
+      },
+      "quota_q30_delta": {
+        "cumulative_return": -7.193758784280744,
+        "cagr": -0.017729195098539652,
+        "max_drawdown": 0.04603621496491406,
+        "turnover": -0.0219772917337753
+      },
+      "quota_q20_delta": {
+        "cumulative_return": -77.18954524698519,
+        "cagr": -0.07398289754876841,
+        "max_drawdown": 0.10572023326136082,
+        "turnover": -0.5108328152665549
+      },
+      "progress": true,
+      "progress_reasons": [
+        "quota q=0.40 improves MDD versus quota q=0.30",
+        "quota q=0.40 is materially more defensive than quota q=0.20",
+        "quota q=0.40 materially lowers turnover versus quota q=0.20"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 6:7 q=0.40 closes the quota q-grid triangle and tests whether the blended branch can become a defensive/low-turnover candidate."
+    },
+    {
+      "sequence": 10,
+      "hypothesis_id": "quota-q20-min-weight-001-storage-light",
+      "started_at": "2026-05-29T14:03:37.202802+00:00",
+      "finished_at": "2026-05-29T14:14:30.682651+00:00",
+      "ledger": "reports/factor_router_auto_10_quota-q20-mw001_20260529T140336Z.json",
+      "report": "reports/factor_router_auto_10_quota-q20-mw001_20260529T140336Z.md",
+      "run_id": "factor_router_auto_10_quota-q20-mw001_20260529T140336Z_baseline_mean_q20_n13_polquota_quota6x7_macroddqm2_25x3_us_macro_mw0p01",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "storage_light": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 87.72683582351642,
+        "cagr": 0.1508949001171802,
+        "max_drawdown": -0.4116044113559577,
+        "turnover": 0.6509588481159496,
+        "long_turnover": 0.6429596869596473,
+        "short_turnover": 0.6589580092722519
+      },
+      "quota_q20_delta": {
+        "cumulative_return": 1.0251427070657826,
+        "cagr": 0.00041897631365928056,
+        "max_drawdown": 0.0,
+        "turnover": 4.2148599072144854e-05
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 1,
+      "interpretation": "min_weight 0.01 checks whether smoothing factor allocations improves implementation realism for the aggressive quota q=0.20 branch."
+    },
+    {
+      "sequence": 11,
+      "hypothesis_id": "quota-4-9-q30-preserve-scores",
+      "started_at": "2026-05-29T14:15:15.510083+00:00",
+      "finished_at": "2026-05-29T14:26:04.923827+00:00",
+      "ledger": "reports/factor_router_auto_11_quota4x9-q30_20260529T141514Z.json",
+      "report": "reports/factor_router_auto_11_quota4x9-q30_20260529T141514Z.md",
+      "run_id": "factor_router_auto_11_quota4x9-q30_20260529T141514Z_baseline_mean_q30_n13_polquota_quota4x9_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 18.49129882181165,
+        "cagr": 0.09752081589020722,
+        "max_drawdown": -0.3163557327497031,
+        "turnover": 0.1667025441516675,
+        "long_turnover": 0.17707279705289575,
+        "short_turnover": 0.15633229125043926
+      },
+      "quota6x7_q30_delta": {
+        "cumulative_return": 1.785392168065453,
+        "cagr": 0.003298594536915056,
+        "max_drawdown": 0.03556466030980787,
+        "turnover": 0.004641368167569548
+      },
+      "local_q30_delta": {
+        "cumulative_return": -16.291039587474902,
+        "cagr": -0.021089745640798352,
+        "max_drawdown": 0.016059284120574557,
+        "turnover": -0.2679203888869107
+      },
+      "progress": true,
+      "progress_reasons": [
+        "quota 4:9 q=0.30 improves cumulative return versus quota 6:7 q=0.30",
+        "quota 4:9 keeps turnover below local-only while improving over quota 6:7",
+        "quota 4:9 improves MDD versus quota 6:7"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 4:9 q=0.30 tests whether a local-heavier blend improves the balanced q30 branch without fully inheriting local-only turnover."
+    },
+    {
+      "sequence": 12,
+      "hypothesis_id": "quota-3-10-q30-preserve-scores",
+      "started_at": "2026-05-29T14:26:50.161843+00:00",
+      "finished_at": "2026-05-29T14:37:37.436253+00:00",
+      "ledger": "reports/factor_router_auto_12_quota3x10-q30_20260529T142649Z.json",
+      "report": "reports/factor_router_auto_12_quota3x10-q30_20260529T142649Z.md",
+      "run_id": "factor_router_auto_12_quota3x10-q30_20260529T142649Z_baseline_mean_q30_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 18.433525597064264,
+        "cagr": 0.09741874420059027,
+        "max_drawdown": -0.29612413684194805,
+        "turnover": 0.1690804715939872,
+        "long_turnover": 0.1795364028916108,
+        "short_turnover": 0.15862454029636364
+      },
+      "quota4x9_q30_delta": {
+        "cumulative_return": -0.05777322474738611,
+        "cagr": -0.00010207168961695601,
+        "max_drawdown": 0.02023159590775503,
+        "turnover": 0.0023779274423197105
+      },
+      "local_q30_delta": {
+        "cumulative_return": -16.348812812222288,
+        "cagr": -0.021191817330415308,
+        "max_drawdown": 0.036290880028329586,
+        "turnover": -0.26554246144459104
+      },
+      "progress": true,
+      "progress_reasons": [
+        "quota 3:10 q=0.30 improves MDD versus quota 4:9",
+        "quota 3:10 remains lower-turnover than local-only while beating quota 6:7"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 3:10 q=0.30 pushes the local-heavy blend further to test whether the q30 balanced branch has a better local/global allocation than 4:9 or 6:7."
+    },
+    {
+      "sequence": 13,
+      "hypothesis_id": "quota-2-11-q30-preserve-scores",
+      "started_at": "2026-05-29T14:38:25.553924+00:00",
+      "finished_at": "2026-05-29T14:49:08.859227+00:00",
+      "ledger": "reports/factor_router_auto_13_quota2x11-q30_20260529T143825Z.json",
+      "report": "reports/factor_router_auto_13_quota2x11-q30_20260529T143825Z.md",
+      "run_id": "factor_router_auto_13_quota2x11-q30_20260529T143825Z_baseline_mean_q30_n13_polquota_quota2x11_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 16.061165950888476,
+        "cagr": 0.09295125980728147,
+        "max_drawdown": -0.2904607622163944,
+        "turnover": 0.17170948948677187,
+        "long_turnover": 0.18366986374418834,
+        "short_turnover": 0.15974911522935542
+      },
+      "quota3x10_q30_delta": {
+        "cumulative_return": -2.372359646175788,
+        "cagr": -0.004467484393308796,
+        "max_drawdown": 0.005663374625553663,
+        "turnover": 0.002629017892784663
+      },
+      "local_q30_delta": {
+        "cumulative_return": -18.721172458398076,
+        "cagr": -0.025659301723724104,
+        "max_drawdown": 0.04195425465388325,
+        "turnover": -0.26291344355180635
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 1,
+      "interpretation": "quota 2:11 q=0.30 checks whether local-heavy blending keeps improving or starts converging toward local-only behavior."
+    },
+    {
+      "sequence": 14,
+      "hypothesis_id": "quota-3-10-q40-preserve-scores",
+      "started_at": "2026-05-29T14:52:37.186733+00:00",
+      "finished_at": "2026-05-29T15:03:23.728103+00:00",
+      "ledger": "reports/factor_router_auto_14_quota3x10-q40_20260529T145236Z.json",
+      "report": "reports/factor_router_auto_14_quota3x10-q40_20260529T145236Z.md",
+      "run_id": "factor_router_auto_14_quota3x10-q40_20260529T145236Z_baseline_mean_q40_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 9.60583763176674,
+        "cagr": 0.07679233992838652,
+        "max_drawdown": -0.23678238592134138,
+        "turnover": 0.1424242820208872,
+        "long_turnover": 0.14733183943340783,
+        "short_turnover": 0.13751672460836653,
+        "max_factor_weight": 0.21890093792389007,
+        "mean_herfindahl_weight": 0.12281371336648662
+      },
+      "quota3x10_q30_delta": {
+        "cumulative_return": -8.827687965297525,
+        "max_drawdown": 0.05934175092060667,
+        "turnover": -0.02665618957310001,
+        "cagr": -0.020626404272203747
+      },
+      "quota6x7_q40_delta": {
+        "cumulative_return": 0.09368976230128645,
+        "max_drawdown": 0.06910179217325552,
+        "turnover": 0.0023403977705645507,
+        "cagr": 0.0002993136736340052
+      },
+      "local_q40_delta": {
+        "cumulative_return": -5.533130500508943,
+        "max_drawdown": 0.035405615509733535,
+        "turnover": -0.23039877964855604,
+        "cagr": -0.014257704841788899
+      },
+      "progress": true,
+      "progress_reasons": [
+        "lowest MDD observed so far among completed full-panel factor-router runs",
+        "materially improves MDD versus quota 3:10 q=0.30 while keeping turnover low",
+        "improves MDD versus quota 6:7 q=0.40 with essentially similar gross return profile"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 3:10 q=0.40 converts the best local-heavy q30 branch into the current most defensive branch: return falls versus q30, but MDD improves sharply to -23.68% and turnover remains low. This is a strong dashboard/report candidate for the defensive sleeve, with factor_scores preserved.",
+      "next_hypothesis": "Test quota 4:9 q=0.40 to see whether the q40 defensive improvement is specific to 3:10 or robust across adjacent local-heavy quota allocations."
+    },
+    {
+      "sequence": 15,
+      "hypothesis_id": "quota-4-9-q40-preserve-scores",
+      "started_at": "2026-05-29T15:05:14.939064+00:00",
+      "finished_at": "2026-05-29T15:16:01.839695+00:00",
+      "ledger": "reports/factor_router_auto_15_quota4x9-q40_20260529T150514Z.json",
+      "report": "reports/factor_router_auto_15_quota4x9-q40_20260529T150514Z.md",
+      "run_id": "factor_router_auto_15_quota4x9-q40_20260529T150514Z_baseline_mean_q40_n13_polquota_quota4x9_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 9.753405182614756,
+        "cagr": 0.07725862377031878,
+        "max_drawdown": -0.2572717145445783,
+        "turnover": 0.14152217630560202,
+        "long_turnover": 0.14642967389939987,
+        "short_turnover": 0.13661467871180416,
+        "max_factor_weight": 0.21801119108694797,
+        "mean_herfindahl_weight": 0.1221060857302145
+      },
+      "quota4x9_q30_delta": {
+        "cumulative_return": -8.737893639196894,
+        "cagr": -0.020262192119888445,
+        "max_drawdown": 0.059084018205124766,
+        "turnover": -0.025180367846065477
+      },
+      "quota3x10_q40_delta": {
+        "cumulative_return": 0.14756755084801654,
+        "cagr": 0.0004662838419322579,
+        "max_drawdown": -0.020489328623236935,
+        "turnover": -0.0009021057152851786
+      },
+      "quota6x7_q40_delta": {
+        "cumulative_return": 0.241257313149303,
+        "cagr": 0.0007655975155662631,
+        "max_drawdown": 0.04861246355001858,
+        "turnover": 0.001438292055279372
+      },
+      "progress": true,
+      "progress_reasons": [
+        "confirms the q=0.40 defensive improvement is robust in an adjacent local-heavy 4:9 quota branch",
+        "materially improves MDD versus the same 4:9 quota at q=0.30 with lower turnover",
+        "beats the earlier 6:7 q=0.40 branch on MDD with similar turnover and slightly higher return"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 4:9 q=0.40 does not beat quota 3:10 q=0.40 on MDD, but it confirms that the defensive q40 result is not a one-off: local-heavy 4:9 also shifts the q30 branch toward much lower drawdown and turnover at the cost of return.",
+      "next_hypothesis": "Run quota 2:11 q=0.40 to test whether the defensive q40 pattern persists when the quota becomes even more local-heavy, or whether it starts converging toward local-only behavior."
+    },
+    {
+      "sequence": 16,
+      "hypothesis_id": "quota-2-11-q40-preserve-scores",
+      "started_at": "2026-05-29T15:17:02.781909+00:00",
+      "finished_at": "2026-05-29T15:27:59.459655+00:00",
+      "ledger": "reports/factor_router_auto_16_quota2x11-q40_20260529T151702Z.json",
+      "report": "reports/factor_router_auto_16_quota2x11-q40_20260529T151702Z.md",
+      "run_id": "factor_router_auto_16_quota2x11-q40_20260529T151702Z_baseline_mean_q40_n13_polquota_quota2x11_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 9.289577465916054,
+        "cagr": 0.07577148240498865,
+        "max_drawdown": -0.20677070432241762,
+        "turnover": 0.14459948516070617,
+        "long_turnover": 0.1500766594154348,
+        "short_turnover": 0.13912231090597757,
+        "max_factor_weight": 0.2408396461168567,
+        "mean_herfindahl_weight": 0.13202413833326326
+      },
+      "quota2x11_q30_delta": {
+        "cumulative_return": -6.771588484972423,
+        "cagr": -0.017179777402292817,
+        "max_drawdown": 0.08369005789397677,
+        "turnover": -0.027110004326065695
+      },
+      "quota3x10_q40_delta": {
+        "cumulative_return": -0.31626016585068584,
+        "cagr": -0.0010208575233978667,
+        "max_drawdown": 0.030011681598923756,
+        "turnover": 0.0021752031398189764
+      },
+      "local_q40_delta": {
+        "cumulative_return": -5.8493906663596285,
+        "cagr": -0.015278562365186765,
+        "max_drawdown": 0.06541729710865729,
+        "turnover": -0.22822357650873706
+      },
+      "progress": true,
+      "progress_reasons": [
+        "new lowest MDD observed so far among completed full-panel factor-router runs",
+        "materially improves MDD versus quota 2:11 q=0.30 with lower turnover",
+        "improves MDD versus quota 3:10 q=0.40, extending the local-heavy defensive frontier"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 2:11 q=0.40 pushes the defensive frontier further: it sacrifices additional return versus 3:10/4:9 q40, but improves MDD to -20.68% with still-low turnover. This suggests a small number of global factors may stabilize an otherwise very local-heavy q40 sleeve better than pure local-only q40.",
+      "next_hypothesis": "Run quota 1:12 q=0.40 as a boundary test: determine whether even less global exposure continues improving drawdown or starts reverting toward local-only q40 behavior."
+    },
+    {
+      "sequence": 17,
+      "hypothesis_id": "quota-1-12-q40-preserve-scores",
+      "started_at": "2026-05-29T15:28:59.864153+00:00",
+      "finished_at": "2026-05-29T15:39:49.251992+00:00",
+      "ledger": "reports/factor_router_auto_17_quota1x12-q40_20260529T152859Z.json",
+      "report": "reports/factor_router_auto_17_quota1x12-q40_20260529T152859Z.md",
+      "run_id": "factor_router_auto_17_quota1x12-q40_20260529T152859Z_baseline_mean_q40_n13_polquota_quota1x12_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 7.882552484103858,
+        "cagr": 0.0708267199552064,
+        "max_drawdown": -0.1713575808504012,
+        "turnover": 0.14585754119609812,
+        "long_turnover": 0.15148579144478086,
+        "short_turnover": 0.14022929094741535,
+        "max_factor_weight": 0.2682803897837274,
+        "mean_herfindahl_weight": 0.1431508594703186
+      },
+      "quota2x11_q40_delta": {
+        "cumulative_return": -1.4070249818121958,
+        "cagr": -0.004944762449782258,
+        "max_drawdown": 0.03541312347201642,
+        "turnover": 0.0012580560353919468
+      },
+      "local_q40_delta": {
+        "cumulative_return": -7.256415648171824,
+        "cagr": -0.020223324814969024,
+        "max_drawdown": 0.10083042058067371,
+        "turnover": -0.22696552047334512
+      },
+      "progress": true,
+      "progress_reasons": [
+        "new lowest MDD observed so far among completed full-panel factor-router runs",
+        "extends the local-heavy q40 defensive frontier from 2:11 to 1:12",
+        "shows the return-drawdown trade-off remains monotonic toward lower drawdown before pure local-only reversion"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 1:12 q=0.40 is the current defensive extreme: MDD improves to -17.14% while cumulative return/CAGR fall. Because pure local-only q40 has much worse MDD, one global slot appears to be a stabilizing bridge rather than a useless dilution.",
+      "next_hypothesis": "Switch from defensive q40 mapping to aggressive q20 mapping on the best local-heavy quota family; run quota 3:10 q=0.20 to see whether local-heavy quotas can improve the high-return q20 branch or only add drawdown/turnover."
+    },
+    {
+      "sequence": 18,
+      "hypothesis_id": "quota-3-10-q20-preserve-scores",
+      "started_at": "2026-05-29T15:40:47.311329+00:00",
+      "finished_at": "2026-05-29T15:51:18.315364+00:00",
+      "ledger": "reports/factor_router_auto_18_quota3x10-q20_20260529T154046Z.json",
+      "report": "reports/factor_router_auto_18_quota3x10-q20_20260529T154046Z.md",
+      "run_id": "factor_router_auto_18_quota3x10-q20_20260529T154046Z_baseline_mean_q20_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 95.0200904273914,
+        "cagr": 0.15374694006783507,
+        "max_drawdown": -0.3926804720625612,
+        "turnover": 0.6472305707901498,
+        "long_turnover": 0.6407665586310368,
+        "short_turnover": 0.6536945829492627,
+        "max_factor_weight": 0.1381956171540855,
+        "mean_herfindahl_weight": 0.09635869512901317
+      },
+      "quota6x7_q20_delta": {
+        "cumulative_return": 8.318397310940753,
+        "cagr": 0.0032710162643141416,
+        "max_drawdown": 0.01892393929339653,
+        "turnover": -0.0036861287267276888
+      },
+      "local_q20_delta": {
+        "cumulative_return": 18.24139904411568,
+        "cagr": 0.007591090700719061,
+        "max_drawdown": -0.0009027722231038648,
+        "turnover": 0.00852038721294468
+      },
+      "quota3x10_q30_delta": {
+        "cumulative_return": 76.58656483032713,
+        "cagr": 0.0563281958672448,
+        "max_drawdown": -0.09655633522061313,
+        "turnover": 0.4781500991961626
+      },
+      "progress": true,
+      "progress_reasons": [
+        "new highest cumulative return observed so far among completed full-panel factor-router runs",
+        "higher CAGR than quota 6:7 q=0.20 with slightly better MDD and turnover",
+        "extends the local-heavy quota result to the aggressive q=0.20 branch"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "quota 3:10 q=0.20 becomes the current aggressive-return frontier: it improves cumulative return/CAGR over the prior 6:7 q20 branch while modestly improving MDD and turnover. This suggests local-heavy quota tuning is useful on both the defensive q40 and aggressive q20 surfaces, though q20 still carries high drawdown and turnover.",
+      "next_hypothesis": "Run quota 2:11 q=0.20 to test whether making the aggressive q20 branch even more local-heavy keeps improving return/MDD or starts converging toward weaker local-only q20 behavior."
+    },
+    {
+      "sequence": 19,
+      "hypothesis_id": "quota-2-11-q20-preserve-scores",
+      "started_at": "2026-05-29T15:52:16.560964+00:00",
+      "finished_at": "2026-05-29T16:02:54.627242+00:00",
+      "ledger": "reports/factor_router_auto_19_quota2x11-q20_20260529T155216Z.json",
+      "report": "reports/factor_router_auto_19_quota2x11-q20_20260529T155216Z.md",
+      "run_id": "factor_router_auto_19_quota2x11-q20_20260529T155216Z_baseline_mean_q20_n13_polquota_quota2x11_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 87.5164752984632,
+        "cagr": 0.15080930941696913,
+        "max_drawdown": -0.40794984632057796,
+        "turnover": 0.6452175774366534,
+        "long_turnover": 0.6397628824733004,
+        "short_turnover": 0.6506722724000065,
+        "max_factor_weight": 0.1457794071407554,
+        "mean_herfindahl_weight": 0.09977174928266361
+      },
+      "quota3x10_q20_delta": {
+        "cumulative_return": -7.503615128928189,
+        "cagr": -0.002937630650865941,
+        "max_drawdown": -0.015269374258016777,
+        "turnover": -0.0020129933534963618
+      },
+      "quota6x7_q20_delta": {
+        "cumulative_return": 0.8147821820125642,
+        "cagr": 0.0003333856134482005,
+        "max_drawdown": 0.003654565035379753,
+        "turnover": -0.0056991220802240505
+      },
+      "local_q20_delta": {
+        "cumulative_return": 10.737783915187492,
+        "cagr": 0.00465346004985312,
+        "max_drawdown": -0.01617214648112064,
+        "turnover": 0.006507393859448318
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 1,
+      "interpretation": "quota 2:11 q=0.20 does not improve the aggressive frontier. It gives up meaningful cumulative return/CAGR versus quota 3:10 q20 and worsens MDD, while only slightly lowering turnover. This suggests the aggressive q20 optimum may be around 3:10 rather than more local-heavy.",
+      "next_hypothesis": "Run quota 4:9 q=0.20 to complete the adjacent aggressive q20 sweep around the 3:10 winner and check whether a slightly less local-heavy quota can beat it."
+    },
+    {
+      "sequence": 20,
+      "hypothesis_id": "quota-4-9-q20-preserve-scores",
+      "started_at": "2026-05-29T16:03:45.011799+00:00",
+      "finished_at": "2026-05-29T16:14:23.334582+00:00",
+      "ledger": "reports/factor_router_auto_20_quota4x9-q20_20260529T160344Z.json",
+      "report": "reports/factor_router_auto_20_quota4x9-q20_20260529T160344Z.md",
+      "run_id": "factor_router_auto_20_quota4x9-q20_20260529T160344Z_baseline_mean_q20_n13_polquota_quota4x9_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 93.27082238898782,
+        "cagr": 0.153082511200761,
+        "max_drawdown": -0.4007866656617233,
+        "turnover": 0.6484418475189806,
+        "long_turnover": 0.6415709438557278,
+        "short_turnover": 0.6553127511822333,
+        "max_factor_weight": 0.139364310147118,
+        "mean_herfindahl_weight": 0.09748829012044548
+      },
+      "quota3x10_q20_delta": {
+        "cumulative_return": -1.7492680384035708,
+        "cagr": -0.0006644288670740739,
+        "max_drawdown": -0.008106193599162093,
+        "turnover": 0.0012112767288308124
+      },
+      "quota2x11_q20_delta": {
+        "cumulative_return": 5.754347090524618,
+        "cagr": 0.002273201783791867,
+        "max_drawdown": 0.007163180658854684,
+        "turnover": 0.003224270082327174
+      },
+      "quota6x7_q20_delta": {
+        "cumulative_return": 6.569129272537182,
+        "cagr": 0.0026065873972400677,
+        "max_drawdown": 0.010817745694234437,
+        "turnover": -0.0024748519978968764
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 2,
+      "interpretation": "quota 4:9 q=0.20 is strong but still does not beat quota 3:10 q20: it has lower return/CAGR, worse MDD, and slightly higher turnover. Together with 2:11 q20, this brackets 3:10 as the current aggressive quota peak rather than proving a new branch.",
+      "next_hypothesis": "Move from quota-only tuning to model variation on the best aggressive branch. Run a budget-aware non-baseline model on quota 3:10 q=0.20, preserving local-data/no-WRDS and one-heavy-run constraints."
+    },
+    {
+      "sequence": 21,
+      "hypothesis_id": "ridge-quota-3-10-q20-preserve-scores",
+      "started_at": "2026-05-29T16:15:28.136132+00:00",
+      "finished_at": "2026-05-29T16:26:04.679056+00:00",
+      "ledger": "reports/factor_router_auto_21_ridge-quota3x10-q20_20260529T161527Z.json",
+      "report": "reports/factor_router_auto_21_ridge-quota3x10-q20_20260529T161527Z.md",
+      "run_id": "factor_router_auto_21_ridge-quota3x10-q20_20260529T161527Z_ridge_q20_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 78.0395760339372,
+        "cagr": 0.14673348453005164,
+        "max_drawdown": -0.38360732392914243,
+        "turnover": 0.6060710300372234,
+        "long_turnover": 0.6156556305513105,
+        "short_turnover": 0.5964864295231365,
+        "max_factor_weight": 0.25491726076499227,
+        "mean_herfindahl_weight": 0.19562628430307338
+      },
+      "baseline3x10_q20_delta": {
+        "cumulative_return": -16.9805143934542,
+        "cagr": -0.007013455537783431,
+        "max_drawdown": 0.009073148133418751,
+        "turnover": -0.04115954075292638
+      },
+      "quota6x7_q20_delta": {
+        "cumulative_return": -8.662117082513447,
+        "cagr": -0.003742439273469289,
+        "max_drawdown": 0.02799708742681528,
+        "turnover": -0.04484566947965407
+      },
+      "local_q20_delta": {
+        "cumulative_return": 1.260884650661481,
+        "cagr": 0.0005776351629356302,
+        "max_drawdown": 0.008170375910314887,
+        "turnover": -0.0326391535399817
+      },
+      "progress": true,
+      "progress_reasons": [
+        "adds the first non-baseline ML model comparison on the strongest aggressive branch",
+        "ridge lowers MDD and turnover versus baseline_mean quota 3:10 q=0.20",
+        "ridge provides a lower-risk/lower-turnover model diagnostic despite lower return"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "Ridge does not beat baseline_mean on return, but it materially reduces MDD and turnover on the same 3:10 q20 surface. This is useful evidence that model choice changes the return/risk/implementation trade-off and can support factor-diagnostic comparisons in the final report.",
+      "next_hypothesis": "Run elasticnet on the same quota 3:10 q=0.20 branch to test whether sparse linear regularization changes the model-factor trade-off relative to ridge and baseline_mean."
+    },
+    {
+      "sequence": 22,
+      "hypothesis_id": "elasticnet-quota-3-10-q20-preserve-scores",
+      "started_at": "2026-05-29T16:26:56.912992+00:00",
+      "finished_at": "2026-05-29T16:37:49.798076+00:00",
+      "ledger": "reports/factor_router_auto_22_elasticnet-quota3x10-q20_20260529T162656Z.json",
+      "report": "reports/factor_router_auto_22_elasticnet-quota3x10-q20_20260529T162656Z.md",
+      "run_id": "factor_router_auto_22_elasticnet-quota3x10-q20_20260529T162656Z_elasticnet_q20_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 235.43365639716754,
+        "cagr": 0.1867851212092786,
+        "max_drawdown": -0.21202133106542964,
+        "turnover": 0.6129264261993517,
+        "long_turnover": 0.624239367515432,
+        "short_turnover": 0.6016134848832713,
+        "max_factor_weight": 0.267939175433814,
+        "mean_herfindahl_weight": 0.19912288735089523
+      },
+      "baseline3x10_q20_delta": {
+        "cumulative_return": 140.41356596977613,
+        "cagr": 0.03303818114144352,
+        "max_drawdown": 0.18065914099713154,
+        "turnover": -0.034304144590798114
+      },
+      "ridge3x10_q20_delta": {
+        "cumulative_return": 157.39408036323033,
+        "cagr": 0.040051636679226954,
+        "max_drawdown": 0.1715859928637128,
+        "turnover": 0.006855396162128269
+      },
+      "defensive1x12_q40_delta": {
+        "cumulative_return": 227.55110391306368,
+        "cagr": 0.1159584012540722,
+        "max_drawdown": -0.04066375021502844,
+        "turnover": 0.46706888500325355
+      },
+      "progress": true,
+      "progress_reasons": [
+        "new highest cumulative return and CAGR observed so far",
+        "materially improves MDD versus baseline_mean quota 3:10 q=0.20 while also increasing return",
+        "elasticnet creates a distinct sparse-linear model branch worth diagnostics and q-robustness follow-up"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "ElasticNet is a major model-axis break from the baseline: on quota 3:10 q20 it sharply raises cumulative return/CAGR while cutting MDD close to the defensive q40 family, though turnover remains high and factor concentration rises. This branch must be treated as research evidence needing robustness checks, not as production advice.",
+      "next_hypothesis": "Run elasticnet on quota 3:10 q=0.30 to test whether the sparse-linear improvement is robust beyond the aggressive q=0.20 cutoff."
+    },
+    {
+      "sequence": 23,
+      "hypothesis_id": "elasticnet-quota-3-10-q30-preserve-scores",
+      "started_at": "2026-05-29T16:38:48.237642+00:00",
+      "finished_at": "2026-05-29T16:49:45.534563+00:00",
+      "ledger": "reports/factor_router_auto_23_elasticnet-quota3x10-q30_20260529T163847Z.json",
+      "report": "reports/factor_router_auto_23_elasticnet-quota3x10-q30_20260529T163847Z.md",
+      "run_id": "factor_router_auto_23_elasticnet-quota3x10-q30_20260529T163847Z_elasticnet_q30_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 27.099911562299663,
+        "cagr": 0.11017190762016726,
+        "max_drawdown": -0.21327823229590426,
+        "turnover": 0.4078836078904591,
+        "long_turnover": 0.427728049342869,
+        "short_turnover": 0.38803916643804903,
+        "max_factor_weight": 0.32246382912541444,
+        "mean_herfindahl_weight": 0.2423139190650122
+      },
+      "elasticnet_q20_delta": {
+        "cumulative_return": -208.33374483486787,
+        "cagr": -0.07661321358911133,
+        "max_drawdown": -0.0012569012304746163,
+        "turnover": -0.2050428183088926
+      },
+      "baseline3x10_q30_delta": {
+        "cumulative_return": 8.6663859652354,
+        "cagr": 0.012753163419576996,
+        "max_drawdown": 0.08284590454604379,
+        "turnover": 0.23880313629647187
+      },
+      "defensive1x12_q40_delta": {
+        "cumulative_return": 19.217359078195805,
+        "cagr": 0.03934518766496087,
+        "max_drawdown": -0.041920651445503054,
+        "turnover": 0.26202606669436096
+      },
+      "progress": true,
+      "progress_reasons": [
+        "elasticnet q=0.30 improves both return and MDD versus baseline_mean quota 3:10 q=0.30",
+        "confirms elasticnet improvement is not limited to the q=0.20 cutoff, though the explosive q20 return is not replicated",
+        "provides a medium-q model/factor branch for final q-robustness diagnostics"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "ElasticNet q30 is not the q20-style high-return outlier, but it remains better than baseline_mean q30 on return and drawdown. The trade-off is materially higher turnover and higher factor concentration, so this branch is useful for q-robustness and model-factor diagnostics rather than an unqualified replacement.",
+      "next_hypothesis": "Run elasticnet on quota 3:10 q=0.40 to complete the q robustness triangle for the sparse-linear model."
+    },
+    {
+      "sequence": 24,
+      "hypothesis_id": "elasticnet-quota-3-10-q40-preserve-scores",
+      "started_at": "2026-05-29T16:50:44.080568+00:00",
+      "finished_at": "2026-05-29T17:01:35.370441+00:00",
+      "ledger": "reports/factor_router_auto_24_elasticnet-quota3x10-q40_20260529T165043Z.json",
+      "report": "reports/factor_router_auto_24_elasticnet-quota3x10-q40_20260529T165043Z.md",
+      "run_id": "factor_router_auto_24_elasticnet-quota3x10-q40_20260529T165043Z_elasticnet_q40_n13_polquota_quota3x10_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 10.847985050153703,
+        "cagr": 0.08053538129622262,
+        "max_drawdown": -0.1809468920608619,
+        "turnover": 0.345556405975645,
+        "long_turnover": 0.3527897218637339,
+        "short_turnover": 0.3383230900875562,
+        "max_factor_weight": 0.3259705700707999,
+        "mean_herfindahl_weight": 0.24216581098585058
+      },
+      "elasticnet_q30_delta": {
+        "cumulative_return": -16.25192651214596,
+        "cagr": -0.029636526323944645,
+        "max_drawdown": 0.03233134023504236,
+        "turnover": -0.06232720191481406
+      },
+      "baseline3x10_q40_delta": {
+        "cumulative_return": 1.2421474183869634,
+        "cagr": 0.0037430413678360974,
+        "max_drawdown": 0.05583549386047948,
+        "turnover": 0.20313212395475783
+      },
+      "defensive1x12_q40_delta": {
+        "cumulative_return": 2.965432566049845,
+        "cagr": 0.009708661341016223,
+        "max_drawdown": -0.009589311210460694,
+        "turnover": 0.1996988647795469
+      },
+      "progress": true,
+      "progress_reasons": [
+        "completes elasticnet q=0.20/0.30/0.40 robustness triangle",
+        "elasticnet q=0.40 improves return and MDD versus baseline_mean quota 3:10 q=0.40",
+        "provides a sparse-linear defensive branch close to the best baseline defensive MDD while retaining higher return"
+      ],
+      "consecutive_non_progress_after_run": 0,
+      "interpretation": "ElasticNet q40 completes the sparse-linear q triangle. It is not the high-return q20 outlier, but it improves baseline 3:10 q40 on both return and drawdown. Compared with the baseline 1:12 q40 defensive extreme, it gives up some MDD and much more turnover for higher return, so it belongs in the return/drawdown frontier discussion rather than as a single winner.",
+      "next_hypothesis": "Run elasticnet quota 1:12 q=0.40 to test whether the sparse-linear model can combine the baseline defensive quota extreme with elasticnet model lift."
+    },
+    {
+      "sequence": 25,
+      "hypothesis_id": "elasticnet-quota-1-12-q40-preserve-scores",
+      "started_at": "2026-05-29T17:02:40.946108+00:00",
+      "finished_at": "2026-05-29T17:13:30.963891+00:00",
+      "ledger": "reports/factor_router_auto_25_elasticnet-quota1x12-q40_20260529T170240Z.json",
+      "report": "reports/factor_router_auto_25_elasticnet-quota1x12-q40_20260529T170240Z.md",
+      "run_id": "factor_router_auto_25_elasticnet-quota1x12-q40_20260529T170240Z_elasticnet_q40_n13_polquota_quota1x12_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 9.6018847515846,
+        "cagr": 0.07677976337859116,
+        "max_drawdown": -0.1731672702083249,
+        "turnover": 0.35225699261824694,
+        "long_turnover": 0.35937377410771243,
+        "short_turnover": 0.3451402111287814,
+        "max_factor_weight": 0.4311701124261213,
+        "mean_herfindahl_weight": 0.35121246574258413
+      },
+      "elasticnet3x10_q40_delta": {
+        "cumulative_return": -1.246100298569102,
+        "cagr": -0.0037556179176314597,
+        "max_drawdown": 0.007779621852537,
+        "turnover": 0.0067005866426019245
+      },
+      "baseline1x12_q40_delta": {
+        "cumulative_return": 1.719332267480743,
+        "cagr": 0.005953043423384763,
+        "max_drawdown": -0.001809689357923694,
+        "turnover": 0.20639945142214883
+      },
+      "elasticnet_q20_delta": {
+        "cumulative_return": -225.83177164558293,
+        "cagr": -0.11000535783068743,
+        "max_drawdown": 0.038854060857104744,
+        "turnover": -0.2606694335811047
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 1,
+      "interpretation": "ElasticNet 1:12 q40 does not create a cleaner defensive frontier. It marginally improves MDD versus ElasticNet 3:10 q40, but loses return and raises turnover; versus baseline 1:12 q40 it raises return but slightly worsens MDD and substantially raises turnover. Treat as a boundary diagnostic, not a new preferred branch.",
+      "next_hypothesis": "Run ElasticNet 2:11 q=0.40 as the intermediate defensive point between 3:10 and 1:12 to check whether the sparse-linear defensive trade-off has a better interior quota."
+    },
+    {
+      "sequence": 26,
+      "hypothesis_id": "elasticnet-quota-2-11-q40-preserve-scores",
+      "started_at": "2026-05-29T17:14:33.956536+00:00",
+      "finished_at": "2026-05-29T17:25:21.429541+00:00",
+      "ledger": "reports/factor_router_auto_26_elasticnet-quota2x11-q40_20260529T171433Z.json",
+      "report": "reports/factor_router_auto_26_elasticnet-quota2x11-q40_20260529T171433Z.md",
+      "run_id": "factor_router_auto_26_elasticnet-quota2x11-q40_20260529T171433Z_elasticnet_q40_n13_polquota_quota2x11_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 10.424072557221276,
+        "cagr": 0.07930258004088753,
+        "max_drawdown": -0.18204393022459042,
+        "turnover": 0.3490021633037307,
+        "long_turnover": 0.35615824223060005,
+        "short_turnover": 0.34184608437686137,
+        "max_factor_weight": 0.366440143236213,
+        "mean_herfindahl_weight": 0.27791120452111867
+      },
+      "elasticnet3x10_q40_delta": {
+        "cumulative_return": -0.42391249293242694,
+        "cagr": -0.001232801255335092,
+        "max_drawdown": -0.0010970381637285254,
+        "turnover": 0.0034457573280856635
+      },
+      "elasticnet1x12_q40_delta": {
+        "cumulative_return": 0.8221878056366752,
+        "cagr": 0.0025228166622963677,
+        "max_drawdown": -0.008876660016265525,
+        "turnover": -0.003254829314516261
+      },
+      "baseline2x11_q40_delta": {
+        "cumulative_return": 1.1344950913052223,
+        "cagr": 0.003531097635898872,
+        "max_drawdown": 0.024726774097827198,
+        "turnover": 0.2044026781430245
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 2,
+      "interpretation": "ElasticNet 2:11 q40 also fails to improve the sparse-linear defensive frontier. It sits between 3:10 and 1:12 on return, but does not improve drawdown or turnover enough to justify another frontier. The ElasticNet defensive q40 surface is therefore less attractive than the q20/q30 ElasticNet evidence.",
+      "next_hypothesis": "Shift back to the high-return ElasticNet q=0.20 branch and test adjacent quota 4:9 to see whether the sparse-linear aggressive peak is truly at 3:10 or can be improved by slightly more global exposure."
+    },
+    {
+      "sequence": 27,
+      "hypothesis_id": "elasticnet-quota-4-9-q20-preserve-scores",
+      "started_at": "2026-05-29T17:26:16.969488+00:00",
+      "finished_at": "2026-05-29T17:36:54.443409+00:00",
+      "ledger": "reports/factor_router_auto_27_elasticnet-quota4x9-q20_20260529T172616Z.json",
+      "report": "reports/factor_router_auto_27_elasticnet-quota4x9-q20_20260529T172616Z.md",
+      "run_id": "factor_router_auto_27_elasticnet-quota4x9-q20_20260529T172616Z_elasticnet_q20_n13_polquota_quota4x9_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 234.4350515789576,
+        "cagr": 0.18662774869190835,
+        "max_drawdown": -0.21550569190663849,
+        "turnover": 0.6108245642891847,
+        "long_turnover": 0.6226872501009645,
+        "short_turnover": 0.5989618784774049,
+        "max_factor_weight": 0.27341347901807495,
+        "mean_herfindahl_weight": 0.19988117559627605
+      },
+      "elasticnet3x10_q20_delta": {
+        "cumulative_return": -0.998604818209941,
+        "cagr": -0.0001573725173702467,
+        "max_drawdown": -0.0034843608412088445,
+        "turnover": -0.0021018619101669245
+      },
+      "baseline4x9_q20_delta": {
+        "cumulative_return": 141.16422918996977,
+        "cagr": 0.03354523749114735,
+        "max_drawdown": 0.1852809737550848,
+        "turnover": -0.03761728322979585
+      },
+      "ridge3x10_q20_delta": {
+        "cumulative_return": 156.39547554502042,
+        "cagr": 0.03989426416185671,
+        "max_drawdown": 0.16810163202250394,
+        "turnover": 0.004753534251961344
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 3,
+      "interpretation": "ElasticNet 4:9 q20 is nearly tied with 3:10 q20 but does not improve it: return/CAGR and MDD are slightly worse, while turnover is only modestly lower. This brackets the sparse-linear aggressive peak from the more-global side and keeps 3:10 q20 as the current high-return ElasticNet branch.",
+      "next_hypothesis": "Run ElasticNet 2:11 q=0.20 to bracket the sparse-linear aggressive peak from the more-local side before deciding whether to stop or move to another axis."
+    },
+    {
+      "sequence": 28,
+      "hypothesis_id": "elasticnet-quota-2-11-q20-preserve-scores",
+      "started_at": "2026-05-29T17:37:55.839783+00:00",
+      "finished_at": "2026-05-29T17:48:39.629171+00:00",
+      "ledger": "reports/factor_router_auto_28_elasticnet-quota2x11-q20_20260529T173755Z.json",
+      "report": "reports/factor_router_auto_28_elasticnet-quota2x11-q20_20260529T173755Z.md",
+      "run_id": "factor_router_auto_28_elasticnet-quota2x11-q20_20260529T173755Z_elasticnet_q20_n13_polquota_quota2x11_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 221.74941930496414,
+        "cagr": 0.1845702813608181,
+        "max_drawdown": -0.21434752241353205,
+        "turnover": 0.6113065948312923,
+        "long_turnover": 0.6238697707319291,
+        "short_turnover": 0.5987434189306557,
+        "max_factor_weight": 0.2873015025971721,
+        "mean_herfindahl_weight": 0.21590832079644437
+      },
+      "elasticnet3x10_q20_delta": {
+        "cumulative_return": -13.684237092203404,
+        "cagr": -0.0022148398484604925,
+        "max_drawdown": -0.0023261913481024132,
+        "turnover": -0.0016198313680593213
+      },
+      "elasticnet4x9_q20_delta": {
+        "cumulative_return": -12.685632273993463,
+        "cagr": -0.002057467331090246,
+        "max_drawdown": 0.0011581694931064312,
+        "turnover": 0.0004820305421076032
+      },
+      "baseline2x11_q20_delta": {
+        "cumulative_return": 134.23294400650093,
+        "cagr": 0.03376097194384897,
+        "max_drawdown": 0.1936023239070459,
+        "turnover": -0.03391098260536107
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 4,
+      "interpretation": "ElasticNet 2:11 q20 is worse than the 3:10 q20 frontier and also below the near-tie 4:9 q20 branch. The sparse-linear aggressive peak is now bracketed on both quota sides, with 3:10 remaining the best observed q20 allocation.",
+      "next_hypothesis": "Use the last pre-stop slot on a different axis: ElasticNet category-cap=3 q=0.20, testing whether family diversification can reduce concentration/drawdown or improve return before terminating on five non-progress hypotheses."
+    },
+    {
+      "sequence": 29,
+      "hypothesis_id": "elasticnet-category-cap3-q20-preserve-scores",
+      "started_at": "2026-05-29T17:49:35.768419+00:00",
+      "finished_at": "2026-05-29T18:00:33.351934+00:00",
+      "ledger": "reports/factor_router_auto_29_elasticnet-categorycap3-q20_20260529T174935Z.json",
+      "report": "reports/factor_router_auto_29_elasticnet-categorycap3-q20_20260529T174935Z.md",
+      "run_id": "factor_router_auto_29_elasticnet-categorycap3-q20_20260529T174935Z_elasticnet_q20_n13_polcategory_capped_cap3_macroddqm2_25x3_us_macro_mw0p0",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "factor_scores_preserved": true,
+      "metrics": {
+        "periods": 383,
+        "cumulative_return": 193.65696439088842,
+        "cagr": 0.17957748251708816,
+        "max_drawdown": -0.23089870845314975,
+        "turnover": 0.6156624106228363,
+        "long_turnover": 0.6128342914075935,
+        "short_turnover": 0.6184905298380793,
+        "max_factor_weight": 0.27107523997269456,
+        "mean_herfindahl_weight": 0.1909224233836725
+      },
+      "elasticnet3x10_q20_delta": {
+        "cumulative_return": -41.77669200627912,
+        "cagr": -0.007207638692190432,
+        "max_drawdown": -0.018877377387720107,
+        "turnover": 0.002735984423484661
+      },
+      "baseline_catcap_q30_delta": {
+        "cumulative_return": 166.35483232389763,
+        "cagr": 0.06915612478720812,
+        "max_drawdown": 0.08391348920976116,
+        "turnover": 0.05294058519558109
+      },
+      "elasticnet4x9_q20_delta": {
+        "cumulative_return": -40.77808718806918,
+        "cagr": -0.007050266174820186,
+        "max_drawdown": -0.015393016546511262,
+        "turnover": 0.004837846333651585
+      },
+      "progress": false,
+      "progress_reasons": [],
+      "consecutive_non_progress_after_run": 5,
+      "stop_triggered": true,
+      "interpretation": "ElasticNet category-cap=3 q20 improves greatly over the old baseline category-cap branch, but it does not improve the ElasticNet 3:10 q20 frontier: lower return/CAGR, worse MDD, and slightly higher turnover. It does slightly lower factor concentration, but not enough to count as a balanced-scorecard improvement.",
+      "next_hypothesis": "Stop heavy experiments because five consecutive completed hypotheses produced no material frontier improvement; move to final reporting, README update, and verification."
+    }
+  ],
+  "consecutive_non_progress": 5,
+  "updated_utc": "20260529T180126Z",
+  "events": [
+    {
+      "sequence": 5,
+      "hypothesis_id": "family-cap-policy-cap3",
+      "status": "infra_failed_ledgered",
+      "started_at": "2026-05-29T12:02:22.909319+00:00",
+      "finished_at": "2026-05-29T12:05:34.153399+00:00",
+      "ledger": "reports/factor_router_seq_5_family-cap-policy_20260529T120222Z.json",
+      "report": "reports/factor_router_seq_5_family-cap-policy_20260529T120222Z.md",
+      "run_id": "factor_router_seq_5_family-cap-policy_20260529T120222Z_baseline_mean_q30_n13_polcategory_capped_cap3_macroddqm2_25x3_us_macro_mw0p0",
+      "returncode": 1,
+      "failure_class": "local_disk_full",
+      "failure_excerpt": "No space left on device while writing local parquet factor score artifact",
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "guardrails": {
+        "no_wrds_login": true,
+        "no_external_data": true,
+        "no_new_raw_data": true,
+        "no_team_or_swarm_experiment_execution": true,
+        "single_heavy_experiment_at_a_time": true,
+        "additive_outputs_only": true,
+        "no_cloud_or_oci_auto_provisioning": true,
+        "not_investment_trading_legal_tax_or_production_advice": true
+      },
+      "counted_as_hypothesis_non_progress": false,
+      "consecutive_non_progress_after_run": 0,
+      "recovery_plan": "Free non-project caches only; do not delete existing experiment reports or completed run outputs; retry category_capped with a fresh unique path."
+    },
+    {
+      "timestamp_utc": "20260529T150502Z",
+      "type": "completed_hypothesis",
+      "sequence": 14,
+      "hypothesis_id": "quota-3-10-q40-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_14_quota3x10-q40_20260529T145236Z.json",
+      "note": "quota 3:10 q=0.40 became the lowest-MDD completed full-panel branch so far."
+    },
+    {
+      "timestamp_utc": "20260529T151651Z",
+      "type": "completed_hypothesis",
+      "sequence": 15,
+      "hypothesis_id": "quota-4-9-q40-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_15_quota4x9-q40_20260529T150514Z.json",
+      "note": "quota 4:9 q=0.40 confirmed adjacent local-heavy q40 defensive robustness."
+    },
+    {
+      "timestamp_utc": "20260529T152846Z",
+      "type": "completed_hypothesis",
+      "sequence": 16,
+      "hypothesis_id": "quota-2-11-q40-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_16_quota2x11-q40_20260529T151702Z.json",
+      "note": "quota 2:11 q=0.40 set a new lowest-MDD branch."
+    },
+    {
+      "timestamp_utc": "20260529T154029Z",
+      "type": "completed_hypothesis",
+      "sequence": 17,
+      "hypothesis_id": "quota-1-12-q40-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_17_quota1x12-q40_20260529T152859Z.json",
+      "note": "quota 1:12 q=0.40 set a new lowest-MDD defensive extreme."
+    },
+    {
+      "timestamp_utc": "20260529T155202Z",
+      "type": "completed_hypothesis",
+      "sequence": 18,
+      "hypothesis_id": "quota-3-10-q20-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_18_quota3x10-q20_20260529T154046Z.json",
+      "note": "quota 3:10 q=0.20 set a new aggressive-return frontier."
+    },
+    {
+      "timestamp_utc": "20260529T160333Z",
+      "type": "completed_hypothesis",
+      "sequence": 19,
+      "hypothesis_id": "quota-2-11-q20-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 1,
+      "ledger": "reports/factor_router_auto_19_quota2x11-q20_20260529T155216Z.json",
+      "note": "quota 2:11 q=0.20 did not improve on quota 3:10 q20."
+    },
+    {
+      "timestamp_utc": "20260529T161507Z",
+      "type": "completed_hypothesis",
+      "sequence": 20,
+      "hypothesis_id": "quota-4-9-q20-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 2,
+      "ledger": "reports/factor_router_auto_20_quota4x9-q20_20260529T160344Z.json",
+      "note": "quota 4:9 q=0.20 did not beat the 3:10 aggressive frontier."
+    },
+    {
+      "timestamp_utc": "20260529T162644Z",
+      "type": "completed_hypothesis",
+      "sequence": 21,
+      "hypothesis_id": "ridge-quota-3-10-q20-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_21_ridge-quota3x10-q20_20260529T161527Z.json",
+      "note": "ridge added a non-baseline model comparison and reduced MDD/turnover versus baseline aggressive branch."
+    },
+    {
+      "timestamp_utc": "20260529T163831Z",
+      "type": "completed_hypothesis",
+      "sequence": 22,
+      "hypothesis_id": "elasticnet-quota-3-10-q20-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_22_elasticnet-quota3x10-q20_20260529T162656Z.json",
+      "note": "elasticnet quota 3:10 q20 set a new high-return frontier and materially reduced MDD versus baseline q20."
+    },
+    {
+      "timestamp_utc": "20260529T165031Z",
+      "type": "completed_hypothesis",
+      "sequence": 23,
+      "hypothesis_id": "elasticnet-quota-3-10-q30-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_23_elasticnet-quota3x10-q30_20260529T163847Z.json",
+      "note": "elasticnet q30 improves baseline q30 return/drawdown and extends sparse-linear q robustness."
+    },
+    {
+      "timestamp_utc": "20260529T170228Z",
+      "type": "termination_rule_update",
+      "note": "User added stop condition: stop heavy runs when available disk space is <= 2GB."
+    },
+    {
+      "timestamp_utc": "20260529T170228Z",
+      "type": "completed_hypothesis",
+      "sequence": 24,
+      "hypothesis_id": "elasticnet-quota-3-10-q40-preserve-scores",
+      "progress": true,
+      "consecutive_non_progress_after_event": 0,
+      "ledger": "reports/factor_router_auto_24_elasticnet-quota3x10-q40_20260529T165043Z.json",
+      "note": "elasticnet q40 completed the sparse-linear q robustness triangle."
+    },
+    {
+      "timestamp_utc": "20260529T171422Z",
+      "type": "completed_hypothesis",
+      "sequence": 25,
+      "hypothesis_id": "elasticnet-quota-1-12-q40-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 1,
+      "ledger": "reports/factor_router_auto_25_elasticnet-quota1x12-q40_20260529T170240Z.json",
+      "note": "elasticnet 1:12 q40 was diagnostic but did not improve the frontier."
+    },
+    {
+      "timestamp_utc": "20260529T172602Z",
+      "type": "completed_hypothesis",
+      "sequence": 26,
+      "hypothesis_id": "elasticnet-quota-2-11-q40-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 2,
+      "ledger": "reports/factor_router_auto_26_elasticnet-quota2x11-q40_20260529T171433Z.json",
+      "note": "elasticnet 2:11 q40 did not improve sparse-linear defensive frontier."
+    },
+    {
+      "timestamp_utc": "20260529T173744Z",
+      "type": "completed_hypothesis",
+      "sequence": 27,
+      "hypothesis_id": "elasticnet-quota-4-9-q20-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 3,
+      "ledger": "reports/factor_router_auto_27_elasticnet-quota4x9-q20_20260529T172616Z.json",
+      "note": "elasticnet 4:9 q20 nearly tied but did not improve 3:10 q20."
+    },
+    {
+      "timestamp_utc": "20260529T174923Z",
+      "type": "completed_hypothesis",
+      "sequence": 28,
+      "hypothesis_id": "elasticnet-quota-2-11-q20-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 4,
+      "ledger": "reports/factor_router_auto_28_elasticnet-quota2x11-q20_20260529T173755Z.json",
+      "note": "elasticnet 2:11 q20 did not improve sparse-linear aggressive frontier; non-progress count is now 4."
+    },
+    {
+      "timestamp_utc": "20260529T180126Z",
+      "type": "completed_hypothesis",
+      "sequence": 29,
+      "hypothesis_id": "elasticnet-category-cap3-q20-preserve-scores",
+      "progress": false,
+      "consecutive_non_progress_after_event": 5,
+      "ledger": "reports/factor_router_auto_29_elasticnet-categorycap3-q20_20260529T174935Z.json",
+      "note": "elasticnet category cap q20 did not improve the frontier; stop rule reached."
+    },
+    {
+      "timestamp_utc": "20260529T180126Z",
+      "type": "stop_triggered",
+      "reason": "five_consecutive_completed_non_progress_hypotheses",
+      "note": "No further heavy experiments will be launched; workflow moves to reporting/verification."
+    }
+  ],
+  "heavy_experiments_stopped_at": "2026-05-29T18:00:33Z",
+  "stop_reason": "five_consecutive_completed_non_progress_hypotheses"
+}

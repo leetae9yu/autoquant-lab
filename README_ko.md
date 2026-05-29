@@ -74,7 +74,17 @@ Full-panel track은 기존 로컬 chunked artifact인
 - [Matrix report](reports/full_long_short_qspread_full_chunked_report.md)
 - [Reproducibility ledger](reports/full_long_short_qspread_full_chunked_ledger.json)
 
-최신 factor-router harness anchor:
+최신 factor-router 자율 연구 루프:
+
+- [영문 최종 리포트](reports/factor_router_autonomous_research_final_20260529_en.md)
+- [한글 최종 리포트](reports/factor_router_autonomous_research_final_20260529_ko.md)
+- [실험 요약 CSV](reports/factor_router_autonomous_research_final_20260529_summary.csv)
+- [자율 연구 ledger](reports/factor_router_autonomous_research_20260529T111620Z.json)
+- [자율 연구 로그](reports/factor_router_autonomous_research_20260529T111620Z.md)
+
+요약: 이 루프는 로컬 2,082,485-row prepared parquet artifact만 사용했고, 기존 walk-forward OOS timing을 유지했으며, 사용자가 정한 “연속 5개 completed non-progress hypotheses” 종료 규칙에 따라 heavy run을 중단했다. 가장 강한 gross branch는 `elasticnet + quota 3:10 + q=0.20`(gross cumulative 235.43, CAGR 18.68%, MDD -21.20%, turnover 61.29%)이었다. 가장 defensive한 baseline branch는 `baseline_mean + quota 1:12 + q=0.40`(MDD -17.14%, CAGR 7.08%)이었다. 비용, 슬리피지, 대차비용, 단순 세금 proxy를 반영하면 gross 해석은 크게 압축되며, 모든 결과는 연구 진단용이다.
+
+이전 factor-router harness anchor:
 
 - [Factor-router anchor report](reports/factor_router_anchor_20260529T082412Z.md)
 - [Anchor ledger](reports/factor_router_anchor_20260529T082412Z.json)

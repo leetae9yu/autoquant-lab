@@ -74,7 +74,17 @@ Latest additive full-panel long/short QSpread analysis:
 - [Matrix report](reports/full_long_short_qspread_full_chunked_report.md)
 - [Reproducibility ledger](reports/full_long_short_qspread_full_chunked_ledger.json)
 
-Latest factor-router harness anchor:
+Latest factor-router autonomous research loop:
+
+- [English final report](reports/factor_router_autonomous_research_final_20260529_en.md)
+- [Korean final report](reports/factor_router_autonomous_research_final_20260529_ko.md)
+- [Run summary CSV](reports/factor_router_autonomous_research_final_20260529_summary.csv)
+- [Autonomous research ledger](reports/factor_router_autonomous_research_20260529T111620Z.json)
+- [Autonomous research log](reports/factor_router_autonomous_research_20260529T111620Z.md)
+
+Headline: the loop used only the local 2,082,485-row prepared parquet artifact, kept walk-forward OOS timing, and stopped after the user-defined rule of five consecutive non-progress hypotheses. The strongest gross branch was `elasticnet + quota 3:10 + q=0.20` (gross cumulative 235.43, CAGR 18.68%, MDD -21.20%, turnover 61.29%). The most defensive baseline branch was `baseline_mean + quota 1:12 + q=0.40` (MDD -17.14%, CAGR 7.08%). Cost, slippage, borrow, and simplified tax-proxy sensitivity materially compress the gross interpretation; this remains research diagnostics only.
+
+Earlier factor-router harness anchor:
 
 - [Factor-router anchor report](reports/factor_router_anchor_20260529T082412Z.md)
 - [Anchor ledger](reports/factor_router_anchor_20260529T082412Z.json)
