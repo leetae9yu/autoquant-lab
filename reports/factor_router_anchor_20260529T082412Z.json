@@ -1,0 +1,241 @@
+{
+  "created_at": "2026-05-29T08:24:12.588592+00:00",
+  "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+  "guardrails": {
+    "no_wrds_login": true,
+    "no_external_data": true,
+    "no_new_raw_data": true,
+    "no_team_or_swarm_experiment_execution": true,
+    "single_heavy_experiment_at_a_time": true,
+    "additive_outputs_only": true,
+    "no_cloud_or_oci_auto_provisioning": true,
+    "not_investment_trading_legal_tax_or_production_advice": true
+  },
+  "config": "/home/opc/projects/autoquant-lab/configs/server_full.yaml",
+  "panel": "/home/opc/projects/autoquant-lab/experiments/prepared/panel/monthly_labels.parquet",
+  "feature_dir": "/home/opc/projects/autoquant-lab/experiments/prepared/features_full_chunked",
+  "output_dir": "experiments/ddqm2_factor_router_anchor_20260529T082412Z",
+  "run_prefix": "factor_router_anchor_20260529T082412Z",
+  "models": [
+    "baseline_mean"
+  ],
+  "quantiles": [
+    0.3
+  ],
+  "factor_universes": [
+    "selected_13_global_local"
+  ],
+  "factor_selection_policies": [
+    "selected_13_global_local"
+  ],
+  "factor_counts": [
+    13
+  ],
+  "global_local_quotas": [],
+  "category_caps": [],
+  "macro_feature_designs": [
+    "ddqm2_25x3_us_macro"
+  ],
+  "portfolio_surfaces": [
+    "stock_score_qspread_ddqm2"
+  ],
+  "evaluation_modes": [
+    "walk_forward"
+  ],
+  "min_weights": [
+    0.0
+  ],
+  "environment": {
+    "cpu_count": 3,
+    "mem_total_bytes": 17731407872,
+    "mem_available_bytes": 15931826176,
+    "policy": "single_heavy_experiment_at_a_time_no_omx_team_no_swarm"
+  },
+  "artifact_no_overwrite_policy": {
+    "control_ledger": "fail_if_exists_unique_path_required",
+    "control_report_md": "fail_if_exists_unique_path_required",
+    "matrix_csv_sidecar": "fail_if_exists_unique_path_required",
+    "sensitivity_csv": "fail_if_exists_unique_path_required",
+    "per_run_manifest": "skip_existing_never_overwrite",
+    "existing_run_dir_without_manifest": "do_not_write_mark_failed",
+    "temporary_test_outputs": "unique_tmp_path_or_mktemp_required"
+  },
+  "advice_boundary": "Research diagnostics only; not investment, trading, legal, tax, production, or deployment advice.",
+  "cloud_policy": "no_cloud_or_oci_auto_provisioning",
+  "run_specs": [
+    {
+      "label": "baseline_mean",
+      "model": "baseline_mean",
+      "quantile": 0.3,
+      "model_params": {},
+      "experiment_family": "full_long_short_factor_router",
+      "hypothesis": "Full-panel long/short QSpread branch under existing walk-forward OOS protocol with factor-router axes.",
+      "macro_feature_design": "ddqm2_25x3_us_macro",
+      "portfolio_surface": "stock_score_qspread_ddqm2",
+      "evaluation_mode": "walk_forward",
+      "min_weight": 0.0,
+      "factor_universe": "selected_13_global_local",
+      "factor_selection_policy": "selected_13_global_local",
+      "factor_universe_target_count": 13,
+      "global_local_quota": null,
+      "category_cap": null,
+      "optional_axis_state": {
+        "global_local_quota": "not_provided",
+        "category_cap": "not_provided",
+        "rejection_reason": null
+      },
+      "invalid_axis_reason": null
+    }
+  ],
+  "matrix_runs": [
+    {
+      "run_id": "factor_router_anchor_20260529T082412Z_baseline_mean_q30",
+      "run_dir": "experiments/ddqm2_factor_router_anchor_20260529T082412Z/factor_router_anchor_20260529T082412Z_baseline_mean_q30",
+      "model": "baseline_mean",
+      "label": "baseline_mean",
+      "quantile": 0.3,
+      "model_params": {},
+      "factor_universe": "selected_13_global_local",
+      "factor_selection_policy": "selected_13_global_local",
+      "factor_universe_target_count": 13,
+      "global_local_quota": null,
+      "category_cap": null,
+      "macro_feature_design": "ddqm2_25x3_us_macro",
+      "portfolio_surface": "stock_score_qspread_ddqm2",
+      "evaluation_mode": "walk_forward",
+      "min_weight": 0.0,
+      "optional_axis_state": {
+        "global_local_quota": "not_provided",
+        "category_cap": "not_provided",
+        "rejection_reason": null
+      },
+      "invalid_axis_reason": null,
+      "experiment_family": "full_long_short_factor_router",
+      "hypothesis": "Full-panel long/short QSpread branch under existing walk-forward OOS protocol with factor-router axes.",
+      "command": [
+        "/home/opc/projects/autoquant-lab/.venv/bin/python",
+        "scripts/eqr_run_ddqm2.py",
+        "--config",
+        "/home/opc/projects/autoquant-lab/configs/server_full.yaml",
+        "--panel",
+        "/home/opc/projects/autoquant-lab/experiments/prepared/panel/monthly_labels.parquet",
+        "--feature-dir",
+        "/home/opc/projects/autoquant-lab/experiments/prepared/features_full_chunked",
+        "--output-dir",
+        "experiments/ddqm2_factor_router_anchor_20260529T082412Z",
+        "--run-id",
+        "factor_router_anchor_20260529T082412Z_baseline_mean_q30",
+        "--model",
+        "baseline_mean",
+        "--quantile",
+        "0.30",
+        "--factor-universe",
+        "selected_13_global_local",
+        "--factor-selection-policy",
+        "selected_13_global_local",
+        "--factor-universe-target-count",
+        "13",
+        "--macro-feature-design",
+        "ddqm2_25x3_us_macro",
+        "--portfolio-surface",
+        "stock_score_qspread_ddqm2",
+        "--evaluation-mode",
+        "walk_forward",
+        "--walk-forward-test-periods",
+        "12",
+        "--walk-forward-validation-periods",
+        "12",
+        "--factor-score-chunk-dates",
+        "12",
+        "--min-weight",
+        "0.0000"
+      ],
+      "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+      "cloud_policy": "no_cloud_or_oci_auto_provisioning",
+      "advice_boundary": "Research diagnostics only; not investment, trading, legal, tax, production, or deployment advice.",
+      "changed_axes": [
+        "q_grid",
+        "model_subset"
+      ],
+      "required_interpretability_evidence": [
+        "model_factor_importance",
+        "global_local_table",
+        "leg_attribution",
+        "worst_drawdown_explanation",
+        "next_hypothesis",
+        "limitations_or_defer_reason"
+      ],
+      "interpretability_evidence": {
+        "model_factor_importance": false,
+        "global_local_table": false,
+        "leg_attribution": false,
+        "worst_drawdown_explanation": false,
+        "next_hypothesis": true,
+        "limitations_or_defer_reason": true
+      },
+      "next_hypothesis": "Full-panel long/short QSpread branch under existing walk-forward OOS protocol with factor-router axes.",
+      "limitations_or_defer_reason": "No completed diagnostics yet; harness-only phase or missing artifacts.",
+      "branch_decision": "completed",
+      "started_at": "2026-05-29T08:24:12.589011+00:00",
+      "finished_at": "2026-05-29T08:35:00.922746+00:00",
+      "returncode": 0,
+      "stdout": "{\"run_id\": \"factor_router_anchor_20260529T082412Z_baseline_mean_q30\", \"run_dir\": \"/home/opc/projects/autoquant-lab/experiments/ddqm2_factor_router_anchor_20260529T082412Z/factor_router_anchor_20260529T082412Z_baseline_mean_q30\", \"portfolio_summary\": {\"periods\": 383, \"mean_monthly_return\": 0.007380105375646063, \"volatility_monthly\": 0.033296698583046014, \"cumulative_return\": 12.555739409642754, \"max_drawdown\": -0.43071908511939816, \"long_count\": 1453.8720626631855, \"short_count\": 1453.8720626631855, \"turnover\": 0.1524217502923716, \"long_turnover\": 0.1591313736144149, \"short_turnover\": 0.14571212697032826, \"max_factor_weight\": 0.1988917770052586, \"mean_herfindahl_weight\": 0.12092301423228491}}\n",
+      "stderr": "",
+      "sensitivity_path": "reports/factor_router_anchor_20260529T082412Z_sensitivity.csv",
+      "scorecard": {
+        "decision": "defer",
+        "decision_rationale": "Missing required interpretation evidence: model_factor_importance, global_local_table, leg_attribution, worst_drawdown_explanation",
+        "router_state": "candidate",
+        "router_rationale": "Missing required interpretation evidence: model_factor_importance, global_local_table, leg_attribution, worst_drawdown_explanation",
+        "adoption_eligible": false,
+        "dimensions": {
+          "gross_oos_performance": {
+            "available": true,
+            "cumulative_return": 12.555739409642754,
+            "cagr": 0.08510364750908384
+          },
+          "net_robustness": {
+            "available": true
+          },
+          "drawdown": {
+            "available": true,
+            "mdd": -0.43071908511939816
+          },
+          "turnover_resource_realism": {
+            "available": true,
+            "turnover": 0.1524217502923716
+          },
+          "interpretability": {
+            "available": false,
+            "missing": [
+              "model_factor_importance",
+              "global_local_table",
+              "leg_attribution",
+              "worst_drawdown_explanation"
+            ],
+            "evidence": {
+              "model_factor_importance": false,
+              "global_local_table": false,
+              "leg_attribution": false,
+              "worst_drawdown_explanation": false,
+              "next_hypothesis": true,
+              "limitations_or_defer_reason": true
+            }
+          },
+          "reproducibility": {
+            "available": false,
+            "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
+            "child_manifest_data_boundary": "offline_local_artifacts_only_no_wrds_login_no_runtime_external_api"
+          }
+        }
+      },
+      "router_state": "candidate",
+      "router_recommendation": "Missing required interpretation evidence: model_factor_importance, global_local_table, leg_attribution, worst_drawdown_explanation",
+      "autonomous_decision": "defer",
+      "decision_rationale": "Missing required interpretation evidence: model_factor_importance, global_local_table, leg_attribution, worst_drawdown_explanation",
+      "post_run_artifact_note": "Anchor was executed before runner manifest boundary string harmonization; performance artifacts are unchanged, and future runs now write the harness boundary exactly."
+    }
+  ],
+  "sensitivity_path": "reports/factor_router_anchor_20260529T082412Z_sensitivity.csv",
+  "sequential_plan_path": "reports/factor_router_anchor_20260529T082412Z_sequential_plan.md"
+}

@@ -1,0 +1,2 @@
+run_id,family,label,model,q,status,periods,cumulative_return,cagr,mdd,turnover,long_turnover,short_turnover
+factor_router_anchor_20260529T082412Z_baseline_mean_q30,full_long_short_factor_router,baseline_mean,baseline_mean,0.3,ok,383,12.555739409642754,0.08510364750908384,-0.43071908511939816,0.1524217502923716,0.1591313736144149,0.14571212697032826

@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 import pandas as pd
+import pytest
 
 from autoquant_lab.eqr.factors import (
     FactorDefinition,
@@ -122,6 +123,88 @@ def test_selected_13_global_local_factor_universe_is_reproducible() -> None:
     assert len({definition.factor_id for definition in selected}) == 13
     assert metadata["selection_rank"].tolist() == list(range(1, 14))
     assert metadata["selection_reason"].eq("global_local_alpha").all()
+
+
+def test_factor_selection_policies_expose_scope_and_category_metadata() -> None:
+    frame = _synthetic_panel(months=18, assets=20)
+    definitions = (
+        FactorDefinition("quality_g", "Quality G", "quality", "global", "compustat__revenue_yoy", 1.0, "implemented", "test"),
+        FactorDefinition("value_g", "Value G", "valuation", "global", "compustat__pb", -1.0, "implemented", "test"),
+        FactorDefinition("momentum_g", "Momentum G", "momentum", "global", "crsp__mom_12_2", 1.0, "implemented", "test"),
+        FactorDefinition("quality_l", "Quality L", "quality", "local", "ibes__revision_1m", 1.0, "implemented", "test"),
+        FactorDefinition("value_l", "Value L", "valuation", "local", "crsp__mom_6_2", -1.0, "implemented", "test"),
+        FactorDefinition("sentiment_l", "Sentiment L", "sentiment", "local", "ibes__surprise", 1.0, "implemented", "test"),
+    )
+    scores, _ = build_factor_scores(frame, definitions)
+    returns = build_factor_long_short_returns(scores, frame, quantile=0.2)
+
+    local, local_metadata = select_factor_universe(
+        returns,
+        frame,
+        definitions,
+        universe="selected_13_global_local",
+        target_count=3,
+        factor_selection_policy="local_only",
+    )
+    global_, global_metadata = select_factor_universe(
+        returns,
+        frame,
+        definitions,
+        universe="selected_13_global_local",
+        target_count=3,
+        factor_selection_policy="global_only",
+    )
+    quota, quota_metadata = select_factor_universe(
+        returns,
+        frame,
+        definitions,
+        universe="selected_13_global_local",
+        target_count=5,
+        factor_selection_policy="quota",
+        global_local_quota="2:2",
+    )
+    capped, capped_metadata = select_factor_universe(
+        returns,
+        frame,
+        definitions,
+        universe="selected_13_global_local",
+        target_count=5,
+        factor_selection_policy="category_capped",
+        category_cap=1,
+    )
+
+    assert {definition.scope for definition in local} == {"local"}
+    assert {definition.scope for definition in global_} == {"global"}
+    assert sum(definition.scope == "global" for definition in quota) >= 2
+    assert sum(definition.scope == "local" for definition in quota) >= 2
+    assert set(quota_metadata["selection_reason"]).issuperset({"quota_global_bucket", "quota_local_bucket", "quota_deterministic_fill"})
+    assert capped_metadata["family"].value_counts().max() <= 1
+    for metadata in (local_metadata, global_metadata, quota_metadata, capped_metadata):
+        assert {"selection_rank", "selection_reason", "scope", "category", "global_score", "local_score", "combined_score"}.issubset(metadata.columns)
+        assert metadata["category"].equals(metadata["family"])
+
+
+def test_factor_selection_policy_rejects_invalid_quota_and_category_cap() -> None:
+    frame = _synthetic_panel(months=12, assets=20)
+    definitions = (
+        FactorDefinition("quality", "Quality", "quality", "global", "compustat__revenue_yoy", 1.0, "implemented", "test"),
+        FactorDefinition("value", "Value", "valuation", "local", "compustat__pb", -1.0, "implemented", "test"),
+    )
+    scores, _ = build_factor_scores(frame, definitions)
+    returns = build_factor_long_short_returns(scores, frame, quantile=0.2)
+
+    with pytest.raises(ValueError, match="global_local_quota"):
+        select_factor_universe(returns, frame, definitions, universe="selected_13_global_local", target_count=2, factor_selection_policy="quota")
+    with pytest.raises(ValueError, match="positive category_cap"):
+        select_factor_universe(
+            returns,
+            frame,
+            definitions,
+            universe="selected_13_global_local",
+            target_count=2,
+            factor_selection_policy="category_capped",
+            category_cap=0,
+        )
 
 
 def test_macro_feature_design_variants_select_expected_columns() -> None:

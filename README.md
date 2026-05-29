@@ -74,6 +74,12 @@ Latest additive full-panel long/short QSpread analysis:
 - [Matrix report](reports/full_long_short_qspread_full_chunked_report.md)
 - [Reproducibility ledger](reports/full_long_short_qspread_full_chunked_ledger.json)
 
+Latest factor-router harness anchor:
+
+- [Factor-router anchor report](reports/factor_router_anchor_20260529T082412Z.md)
+- [Anchor ledger](reports/factor_router_anchor_20260529T082412Z.json)
+- [Sequential full-run plan](reports/factor_router_anchor_20260529T082412Z_sequential_plan.md)
+
 ## Walk-forward timing and rebalancing
 
 The portfolio surface is monthly. Each `formation_date` represents one monthly rebalance date, and labels use `ret_1m_fwd`, the next-month forward return.
@@ -160,6 +166,7 @@ PYTHONPATH=src:. python scripts/eqr_run_ddqm2.py \
   --macro-feature-design ddqm2_25x3_us_macro \
   --portfolio-surface stock_score_qspread_ddqm2 \
   --evaluation-mode walk_forward \
+  --factor-score-chunk-dates 12 \
   --min-weight 0.03
 ```
 
@@ -185,6 +192,26 @@ PYTHONPATH=src:. python scripts/eqr_run_full_long_short_matrix.py \
   --output-dir experiments/ddqm2_full_long_short \
   --report reports/full_long_short_qspread_full_chunked_report.md \
   --ledger reports/full_long_short_qspread_full_chunked_ledger.json
+```
+
+Dry-run the factor-router surface without launching heavy experiments:
+
+```bash
+SMOKE_DIR="$(mktemp -d)"
+PYTHONPATH=src:. python scripts/eqr_run_full_long_short_matrix.py \
+  --dry-run \
+  --models baseline_mean \
+  --quantiles 0.30 \
+  --factor-counts 7 13 \
+  --factor-selection-policies selected_13_global_local local_only global_only quota category_capped \
+  --global-local-quotas 6:7 \
+  --category-caps 3 \
+  --macro-feature-designs ddqm2_25x3_us_macro \
+  --min-weights 0.00 0.01 \
+  --max-runs 10 \
+  --output-dir "$SMOKE_DIR/runs" \
+  --report "$SMOKE_DIR/report.md" \
+  --ledger "$SMOKE_DIR/ledger.json"
 ```
 
 Run focused tests:
@@ -231,13 +258,33 @@ Headline interpretation from the latest full-panel long/short report:
 
 These are research backtests. They do not fully model slippage, market impact, capacity, tax-lot accounting, borrow constraints, or production tradability. The tax proxy is not tax advice.
 
+4. **Factor-router harness anchor**
+   - Adds local-only, global-only, global/local quota, family/category cap, factor-count, macro-design, and min-weight axes to the sequential harness.
+   - `category` in reports is an alias for `FactorDefinition.family`; invalid quota/cap combinations are rejected before subprocess execution.
+   - One gated anchor was run on local artifacts only: baseline mean, q=0.30, selected_13_global_local, N=13, walk-forward OOS.
+   - Anchor result: 383 OOS periods, cumulative return 12.5557, CAGR 8.51%, MDD -43.07%, turnover 15.24%.
+   - Router state: `candidate` because additional interpretability evidence remains required before broader conclusions.
+   - Follow-up runs are documented as one-at-a-time commands in the sequential plan; no team/swarm or parallel heavy execution.
+
 ## Verification
 
-Recent checks used during the long-only QSpread completion:
+Recent checks used during the factor-router harness completion:
 
 ```text
 PYTHONPATH=src:. .venv/bin/python -m pytest -q
-157 passed, 54 warnings
+176 passed, 54 warnings
+
+PYTHONPATH=src:. .venv/bin/python -m pytest --collect-only -q
+177 tests collected
+
+Factor-router broad dry-run
+10 planned/rejected branches, 0 heavy subprocess launches
+Data boundary: local artifacts only; no WRDS login; no runtime external data
+
+Factor-router one-anchor run
+1 run, 0 failures
+Report: reports/factor_router_anchor_20260529T082412Z.md
+Sequential plan: reports/factor_router_anchor_20260529T082412Z_sequential_plan.md
 
 Full long-only matrix
 18 runs, 0 failures

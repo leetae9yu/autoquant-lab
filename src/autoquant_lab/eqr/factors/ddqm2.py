@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from time import perf_counter
@@ -232,6 +233,9 @@ def select_factor_universe(
     target_count: int = 13,
     overrides: Sequence[str] | None = None,
     macro_feature_design: str = "current_macro_family",
+    factor_selection_policy: str = "selected_13_global_local",
+    global_local_quota: str | tuple[int, int] | None = None,
+    category_cap: int | None = None,
 ) -> tuple[tuple[FactorDefinition, ...], pd.DataFrame]:
     """Select the eligible factor universe for DDQM2-style modeling.
 
@@ -245,11 +249,25 @@ def select_factor_universe(
     definitions_by_id = {definition.factor_id: definition for definition in definitions}
     if universe == "all_implemented_current":
         metadata = pd.DataFrame([definition.to_dict() for definition in definitions])
+        if not metadata.empty:
+            metadata["category"] = metadata["family"]
         metadata["selection_reason"] = "all_implemented_current"
         metadata["selection_rank"] = range(1, len(metadata) + 1)
         return tuple(definitions), metadata
     if universe not in {"selected_13_global_local", "selected_13_plus_us_overrides"}:
         raise ValueError(f"Unsupported factor universe: {universe}")
+    if factor_selection_policy not in {"selected_13_global_local", "local_only", "global_only", "quota", "category_capped"}:
+        raise ValueError(f"Unsupported factor selection policy: {factor_selection_policy}")
+    if factor_selection_policy == "quota":
+        quota_global, quota_local = _parse_global_local_quota(global_local_quota)
+    else:
+        quota_global = quota_local = 0
+    if factor_selection_policy == "category_capped":
+        if category_cap is None or int(category_cap) <= 0:
+            raise ValueError("category_capped policy requires a positive category_cap")
+        cap = int(category_cap)
+    else:
+        cap = None
     if factor_returns.empty:
         return (), pd.DataFrame()
 
@@ -262,17 +280,53 @@ def select_factor_universe(
     combined = global_scores.merge(local_scores, on="factor_id", how="outer").fillna(0.0)
     combined["combined_score"] = combined["global_score"].rank(pct=True) + combined["local_score"].rank(pct=True)
     combined = combined.sort_values(["combined_score", "global_score", "local_score", "factor_id"], ascending=[False, False, False, True])
+    combined = combined.loc[combined["factor_id"].astype(str).isin(definitions_by_id)].copy()
 
     selected: list[str] = []
-    if universe == "selected_13_plus_us_overrides":
+    selection_reasons: dict[str, str] = {}
+    if universe == "selected_13_plus_us_overrides" and factor_selection_policy == "selected_13_global_local":
         for factor_id in overrides or ():
             if factor_id in definitions_by_id and factor_id not in selected:
                 selected.append(factor_id)
-    for factor_id in combined["factor_id"].astype(str):
-        if factor_id in definitions_by_id and factor_id not in selected:
+                selection_reasons[factor_id] = "us_override_seed"
+    if factor_selection_policy in {"selected_13_global_local"}:
+        for factor_id in combined["factor_id"].astype(str):
+            if factor_id in definitions_by_id and factor_id not in selected:
+                selected.append(factor_id)
+                selection_reasons.setdefault(factor_id, "global_local_alpha")
+            if len(selected) >= target_count:
+                break
+    elif factor_selection_policy == "local_only":
+        for factor_id in _select_from_ranked(combined, definitions_by_id, target_count, scope="local"):
             selected.append(factor_id)
-        if len(selected) >= target_count:
-            break
+            selection_reasons[factor_id] = "local_only_alpha"
+    elif factor_selection_policy == "global_only":
+        for factor_id in _select_from_ranked(combined, definitions_by_id, target_count, scope="global"):
+            selected.append(factor_id)
+            selection_reasons[factor_id] = "global_only_alpha"
+    elif factor_selection_policy == "quota":
+        for factor_id in _select_from_ranked(combined, definitions_by_id, quota_global, scope="global"):
+            if len(selected) >= target_count:
+                break
+            selected.append(factor_id)
+            selection_reasons[factor_id] = "quota_global_bucket"
+        for factor_id in _select_from_ranked(combined, definitions_by_id, quota_local, scope="local"):
+            if len(selected) >= target_count:
+                break
+            if factor_id not in selected:
+                selected.append(factor_id)
+                selection_reasons[factor_id] = "quota_local_bucket"
+        if len(selected) < target_count:
+            for factor_id in _select_from_ranked(combined, definitions_by_id, target_count, exclude=set(selected)):
+                if factor_id not in selected:
+                    selected.append(factor_id)
+                    selection_reasons[factor_id] = "quota_deterministic_fill"
+                if len(selected) >= target_count:
+                    break
+    elif factor_selection_policy == "category_capped":
+        for factor_id in _select_with_family_cap(combined, definitions_by_id, target_count, cap or 1):
+            selected.append(factor_id)
+            selection_reasons[factor_id] = f"family_cap_{cap}"
 
     selected = selected[:target_count]
     selected_defs = tuple(definitions_by_id[factor_id] for factor_id in selected)
@@ -280,11 +334,70 @@ def select_factor_universe(
     rows: list[dict[str, Any]] = []
     for rank, definition in enumerate(selected_defs, start=1):
         row = definition.to_dict()
+        row["category"] = definition.family
         row.update(score_map.get(definition.factor_id, {}))
         row["selection_rank"] = rank
-        row["selection_reason"] = "us_override_seed" if universe == "selected_13_plus_us_overrides" and definition.factor_id in set(overrides or ()) else "global_local_alpha"
+        row["selection_reason"] = selection_reasons.get(definition.factor_id, "global_local_alpha")
+        row["factor_selection_policy"] = factor_selection_policy
+        row["global_local_quota"] = global_local_quota if global_local_quota is not None else ""
+        row["category_cap"] = cap if cap is not None else ""
         rows.append(row)
     return selected_defs, pd.DataFrame(rows)
+
+
+def _parse_global_local_quota(value: str | tuple[int, int] | None) -> tuple[int, int]:
+    if isinstance(value, tuple) and len(value) == 2:
+        global_count, local_count = int(value[0]), int(value[1])
+    elif isinstance(value, str) and ":" in value:
+        left, right = value.split(":", 1)
+        global_count, local_count = int(left), int(right)
+    else:
+        raise ValueError("quota policy requires global_local_quota formatted as G:L")
+    if global_count < 0 or local_count < 0 or global_count + local_count <= 0:
+        raise ValueError("global_local_quota counts must be non-negative and non-zero in total")
+    return global_count, local_count
+
+
+def _select_from_ranked(
+    ranked: pd.DataFrame,
+    definitions_by_id: dict[str, FactorDefinition],
+    count: int,
+    *,
+    scope: str | None = None,
+    exclude: set[str] | None = None,
+) -> list[str]:
+    exclude = exclude or set()
+    selected: list[str] = []
+    for factor_id in ranked["factor_id"].astype(str):
+        if factor_id in exclude or factor_id not in definitions_by_id:
+            continue
+        if scope is not None and definitions_by_id[factor_id].scope != scope:
+            continue
+        selected.append(factor_id)
+        if len(selected) >= count:
+            break
+    return selected
+
+
+def _select_with_family_cap(
+    ranked: pd.DataFrame,
+    definitions_by_id: dict[str, FactorDefinition],
+    target_count: int,
+    cap: int,
+) -> list[str]:
+    counts: Counter[str] = Counter()
+    selected: list[str] = []
+    for factor_id in ranked["factor_id"].astype(str):
+        definition = definitions_by_id.get(factor_id)
+        if definition is None:
+            continue
+        if counts[definition.family] >= cap:
+            continue
+        selected.append(factor_id)
+        counts[definition.family] += 1
+        if len(selected) >= target_count:
+            break
+    return selected
 
 
 def _global_alpha_scores(returns: pd.DataFrame) -> pd.DataFrame:

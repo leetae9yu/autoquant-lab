@@ -69,6 +69,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--factor-score-chunk-dates", type=int, default=None, help="Build factor scores/returns in formation-date chunks; <=0 disables chunking.")
     parser.add_argument("--factor-universe", choices=("all_implemented_current", "selected_13_global_local", "selected_13_plus_us_overrides"), default=None, help="Eligible factor universe for modeling/allocation.")
     parser.add_argument("--factor-universe-target-count", type=int, default=None, help="Target factor count for selected universes; defaults to 13.")
+    parser.add_argument("--factor-selection-policy", choices=("selected_13_global_local", "local_only", "global_only", "quota", "category_capped"), default=None, help="Research policy applied within selected DDQM2 factor universes.")
+    parser.add_argument("--global-local-quota", default=None, help="Quota policy counts formatted as G:L, e.g. 6:7.")
+    parser.add_argument("--category-cap", type=int, default=None, help="Category/family cap for category_capped factor selection.")
     parser.add_argument("--macro-feature-design", choices=("current_macro_family", "ddqm2_25x3_us_macro", "expanded_us_macro"), default=None, help="Macro feature design used by factor models.")
     parser.add_argument("--portfolio-surface", choices=("weighted_factor_return_current", "stock_score_qspread_ddqm2", "stock_score_long_only_qspread"), default=None, help="Portfolio surface to backtest.")
     parser.add_argument("--evaluation-mode", choices=("single_holdout", "walk_forward"), default=None, help="DDQM2 evaluation protocol; walk_forward gives expanding-window OOS predictions.")
@@ -804,6 +807,9 @@ def main() -> int:
     factor_score_chunk_dates = int(args.factor_score_chunk_dates if args.factor_score_chunk_dates is not None else ddqm2.get("factor_score_chunk_dates", 0))
     factor_universe = str(args.factor_universe if args.factor_universe is not None else ddqm2.get("factor_universe", "all_implemented_current"))
     factor_universe_target_count = int(args.factor_universe_target_count if args.factor_universe_target_count is not None else ddqm2.get("factor_universe_target_count", 13))
+    factor_selection_policy = str(args.factor_selection_policy if args.factor_selection_policy is not None else ddqm2.get("factor_selection_policy", "selected_13_global_local"))
+    global_local_quota = args.global_local_quota if args.global_local_quota is not None else ddqm2.get("global_local_quota")
+    category_cap = args.category_cap if args.category_cap is not None else ddqm2.get("category_cap")
     macro_feature_design = str(args.macro_feature_design if args.macro_feature_design is not None else ddqm2.get("macro_feature_design", "current_macro_family"))
     portfolio_surface = str(args.portfolio_surface if args.portfolio_surface is not None else ddqm2.get("portfolio_surface", "weighted_factor_return_current"))
     evaluation_mode = str(args.evaluation_mode if args.evaluation_mode is not None else ddqm2.get("evaluation_mode", "single_holdout"))
@@ -818,6 +824,8 @@ def main() -> int:
     _enforce_factor_score_budget(panel, config, args.max_factor_score_rows, factor_score_chunk_dates)
     run_id = _safe_run_id(args.run_id or f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_ddqm2_{model_name}")
     run_dir = _safe_run_dir(args.output_dir, run_id)
+    if run_dir.exists():
+        raise FileExistsError(f"Refusing to overwrite existing DDQM2 run directory: {run_dir}")
     run_dir.mkdir(parents=True, exist_ok=True)
 
     features = _filter_features_to_panel_dates(_read_prepared_macro_features(args.feature_dir), panel)
@@ -838,6 +846,9 @@ def main() -> int:
         target_count=factor_universe_target_count,
         overrides=ddqm2.get("factor_universe_overrides", []) if isinstance(ddqm2.get("factor_universe_overrides", []), list) else [],
         macro_feature_design=macro_feature_design,
+        factor_selection_policy=factor_selection_policy,
+        global_local_quota=global_local_quota,
+        category_cap=category_cap,
     )
     selected_factor_ids = {definition.factor_id for definition in selected_definitions}
     if not selected_factor_ids:
@@ -936,6 +947,9 @@ def main() -> int:
         "min_observations": min_observations,
         "min_weight": min_weight,
         "factor_universe": factor_universe,
+        "factor_selection_policy": factor_selection_policy,
+        "global_local_quota": global_local_quota,
+        "category_cap": category_cap,
         "factor_universe_target_count": factor_universe_target_count,
         "selected_factor_ids": sorted(selected_factor_ids),
         "macro_feature_design": macro_feature_design,
@@ -975,7 +989,7 @@ def main() -> int:
             "report.md",
             "manifest.json",
         ],
-        "data_boundary": "offline_local_artifacts_only_no_wrds_login_no_runtime_external_api",
+        "data_boundary": "local_artifacts_only_no_wrds_login_no_runtime_external_data",
     }
     _write_report(run_dir, manifest, result.metrics, portfolio_summary)
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, default=_json_default), encoding="utf-8")
@@ -986,6 +1000,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, FileExistsError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

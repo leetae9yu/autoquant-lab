@@ -39,6 +39,144 @@ def test_full_long_short_command_preserves_walk_forward_surface(tmp_path: Path) 
     assert command[command.index("--feature-dir") + 1].endswith("features_full_chunked")
 
 
+def test_factor_router_axes_expand_and_build_exact_runner_mapping(tmp_path: Path) -> None:
+    args = harness.parse_args(
+        [
+            "--ledger",
+            str(tmp_path / "ledger.json"),
+            "--report",
+            str(tmp_path / "report.md"),
+            "--output-dir",
+            str(tmp_path / "runs"),
+            "--models",
+            "baseline_mean",
+            "--quantiles",
+            "0.30",
+            "--factor-counts",
+            "13",
+            "--factor-selection-policies",
+            "selected_13_global_local",
+            "local_only",
+            "global_only",
+            "quota",
+            "category_capped",
+            "--global-local-quotas",
+            "6:7",
+            "--category-caps",
+            "3",
+            "--min-weights",
+            "0.00",
+            "0.01",
+            "--dry-run",
+        ]
+    )
+
+    specs = harness.run_specs(args)
+    policies = {spec["factor_selection_policy"] for spec in specs}
+    assert {"selected_13_global_local", "local_only", "global_only", "quota", "category_capped"}.issubset(policies)
+    quota = next(spec for spec in specs if spec["factor_selection_policy"] == "quota")
+    capped = next(spec for spec in specs if spec["factor_selection_policy"] == "category_capped")
+    selected = next(spec for spec in specs if spec["factor_selection_policy"] == "selected_13_global_local")
+
+    quota_command = harness.build_command(args, quota, "unit_quota")
+    capped_command = harness.build_command(args, capped, "unit_cap")
+    selected_command = harness.build_command(args, selected, "unit_selected")
+
+    assert selected_command[selected_command.index("--factor-universe") + 1] == "selected_13_global_local"
+    assert selected_command[selected_command.index("--factor-selection-policy") + 1] == "selected_13_global_local"
+    assert quota_command[quota_command.index("--factor-selection-policy") + 1] == "quota"
+    assert quota_command[quota_command.index("--global-local-quota") + 1] == "6:7"
+    assert capped_command[capped_command.index("--factor-selection-policy") + 1] == "category_capped"
+    assert capped_command[capped_command.index("--category-cap") + 1] == "3"
+
+
+def test_factor_router_invalid_axes_are_rejected_before_subprocess(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(harness, "_run", lambda command: calls.append(command) or {"returncode": 0, "stdout": "", "stderr": ""})
+    args = harness.parse_args(
+        [
+            "--ledger",
+            str(tmp_path / "ledger.json"),
+            "--report",
+            str(tmp_path / "report.md"),
+            "--output-dir",
+            str(tmp_path / "runs"),
+            "--models",
+            "baseline_mean",
+            "--quantiles",
+            "0.30",
+            "--factor-counts",
+            "7",
+            "--factor-selection-policies",
+            "quota",
+            "--execute-heavy-experiments",
+        ]
+    )
+
+    rows = harness.run_matrix(args, "unit")
+
+    assert calls == []
+    assert rows[0]["branch_decision"] == "rejected_invalid_axis_combination"
+    assert rows[0]["invalid_axis_reason"] == "quota policy requires --global-local-quotas G:L"
+
+
+def test_factor_router_dry_run_never_invokes_subprocess_and_ledgers_axes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(harness, "_run", lambda command: pytest.fail("dry-run must not invoke subprocess"))
+    ledger = tmp_path / "ledger.json"
+    report = tmp_path / "report.md"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/eqr_run_full_long_short_matrix.py",
+            "--dry-run",
+            "--models",
+            "baseline_mean",
+            "--quantiles",
+            "0.30",
+            "--factor-counts",
+            "7",
+            "13",
+            "--factor-selection-policies",
+            "selected_13_global_local",
+            "local_only",
+            "global_only",
+            "quota",
+            "category_capped",
+            "--global-local-quotas",
+            "6:7",
+            "--category-caps",
+            "3",
+            "--macro-feature-designs",
+            "ddqm2_25x3_us_macro",
+            "--min-weights",
+            "0.00",
+            "0.01",
+            "--max-runs",
+            "10",
+            "--ledger",
+            str(ledger),
+            "--report",
+            str(report),
+            "--output-dir",
+            str(tmp_path / "runs"),
+        ],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+
+    assert "dry_run" in completed.stdout
+    payload = json.loads(ledger.read_text(encoding="utf-8"))
+    assert payload["matrix_runs"]
+    first = payload["matrix_runs"][0]
+    assert {"factor_selection_policy", "factor_universe_target_count", "optional_axis_state", "router_state"}.issubset(first)
+    assert first["router_state"] == "planned_only"
+    assert first["scorecard"]["dimensions"]["gross_oos_performance"]["available"] is False
+    assert "Dry-run router state `planned_only` never uses observed OOS" in report.read_text(encoding="utf-8")
+
+
 def test_long_short_sensitivity_charges_turnover_borrow_and_tax_proxy() -> None:
     portfolio = pd.DataFrame(
         {
@@ -342,6 +480,33 @@ def test_heavy_execution_requires_explicit_opt_in(tmp_path: Path) -> None:
     assert "requires --execute-heavy-experiments" in run["stderr"]
 
 
+def test_heavy_execution_requires_single_run_gate(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/eqr_run_full_long_short_matrix.py",
+            "--ledger",
+            str(tmp_path / "ledger.json"),
+            "--report",
+            str(tmp_path / "report.md"),
+            "--output-dir",
+            str(tmp_path / "runs"),
+            "--models",
+            "baseline_mean",
+            "--quantiles",
+            "0.30",
+            "--execute-heavy-experiments",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "pass --max-runs 1" in completed.stderr
+    assert not (tmp_path / "ledger.json").exists()
+
+
 def test_scorecard_records_net_robustness_when_sensitivity_path_exists() -> None:
     item = {
         "run_id": "unit_rf_q10",
@@ -356,3 +521,79 @@ def test_scorecard_records_net_robustness_when_sensitivity_path_exists() -> None
     scorecard = harness.build_scorecard(item, row)
 
     assert scorecard["dimensions"]["net_robustness"]["available"] is True
+
+
+def test_scorecard_reproducibility_requires_child_manifest_boundary() -> None:
+    item = {
+        "run_id": "unit_rf_q10",
+        "run_dir": "/tmp/missing",
+        "command": ["python", "scripts/eqr_run_ddqm2.py"],
+        "data_boundary": harness.DATA_BOUNDARY,
+        "interpretability_evidence": {key: True for key in harness.REQUIRED_INTERPRETABILITY_EVIDENCE},
+    }
+    row = {
+        "status": "ok",
+        "periods": 12,
+        "cumulative_return": 1.0,
+        "cagr": 0.10,
+        "mdd": -0.2,
+        "turnover": 0.5,
+        "data_boundary": "different_child_boundary",
+    }
+
+    scorecard = harness.build_scorecard(item, row)
+
+    assert scorecard["dimensions"]["reproducibility"]["available"] is False
+    assert scorecard["dimensions"]["reproducibility"]["child_manifest_data_boundary"] == "different_child_boundary"
+
+
+def test_runner_help_includes_factor_router_flags() -> None:
+    completed = subprocess.run(
+        [sys.executable, "scripts/eqr_run_ddqm2.py", "--help"],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+
+    assert "--factor-selection-policy" in completed.stdout
+    assert "--global-local-quota" in completed.stdout
+    assert "--category-cap" in completed.stdout
+
+
+def test_sequential_plan_artifact_contains_anchor_and_safety_language(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "anchor"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"model": "baseline_mean", "quantile": 0.30, "portfolio_summary": {"periods": 12}}),
+        encoding="utf-8",
+    )
+    args = harness.parse_args(
+        [
+            "--ledger",
+            str(tmp_path / "ledger.json"),
+            "--report",
+            str(tmp_path / "report.md"),
+            "--output-dir",
+            str(tmp_path / "runs"),
+            "--sequential-plan",
+            str(tmp_path / "seq.md"),
+        ]
+    )
+    ledger = {"matrix_runs": [{"run_id": "anchor", "run_dir": str(run_dir), "returncode": 0}]}
+
+    path = harness.write_sequential_plan(args, ledger)
+
+    assert path == tmp_path / "seq.md"
+    text = path.read_text(encoding="utf-8")
+    assert "Anchor run id: `anchor`" in text
+    assert "--max-runs 1" in text
+    assert "--factor-counts 7 --max-runs 1" in text
+    assert "--factor-selection-policies local_only --factor-counts 13 --max-runs 1" in text
+    assert "--factor-selection-policies global_only --factor-counts 13 --max-runs 1" in text
+    assert "--factor-counts 7 13" not in text
+    assert "--factor-selection-policies local_only global_only" not in text
+    assert "No team, no swarm, no parallel heavy experiments" in text
+    assert "Stop on failure, OOM, path collision" in text
+    assert "Balanced-scorecard rationale" in text
+    assert "Research diagnostics only" in text
