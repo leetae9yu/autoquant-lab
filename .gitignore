@@ -25,6 +25,8 @@ experiments/*
 !experiments/.gitkeep
 reports/*
 !reports/.gitkeep
+!reports/full_run_research_paper_20260529_en.md
+!reports/full_run_research_paper_20260529_ko.md
 site/*
 !site/.gitkeep
 *.xlsx
