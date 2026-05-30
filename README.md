@@ -74,12 +74,11 @@ Latest additive full-panel long/short QSpread analysis:
 - [Matrix report](reports/full_long_short_qspread_full_chunked_report.md)
 - [Reproducibility ledger](reports/full_long_short_qspread_full_chunked_ledger.json)
 
-Latest full-run paper-style synthesis:
+Canonical V2 full-run synthesis — read this one first:
 
-- [English paper draft](reports/full_run_research_paper_20260529_en.md)
-- [Korean translation](reports/full_run_research_paper_20260529_ko.md)
+- [V2 final paper, Korean](reports/full_run_factor_router_synthesis_v2_final_20260530_ko.md)
 
-This additive manuscript frames the 2,082,485-row full-panel work as an extension of the earlier 1.25M date-balanced DDQM2 anchors, then develops the full-panel long/short matrix, factor-router frontier, cost/friction caveats, and the autonomous AI-agent research process. It uses only existing local reports and ledgers; no new experiment, WRDS login, or external raw data was used.
+This single V2 paper consolidates the 1.25M date-balanced DDQM2 anchor, the 2,082,485-row full-panel long/short matrix, and the autonomous factor-router research report. It is the recommended one-file narrative for the current research state. Prior bilingual V1 drafts remain available: [English](reports/full_run_research_paper_20260529_en.md), [Korean](reports/full_run_research_paper_20260529_ko.md).
 
 Latest factor-router autonomous research loop:
 

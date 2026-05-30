@@ -74,12 +74,11 @@ Full-panel track은 기존 로컬 chunked artifact인
 - [Matrix report](reports/full_long_short_qspread_full_chunked_report.md)
 - [Reproducibility ledger](reports/full_long_short_qspread_full_chunked_ledger.json)
 
-최신 full-run 논문형 종합본:
+최종 V2 full-run 종합본 — 이것 하나를 먼저 보면 됩니다:
 
-- [영문 논문 초안](reports/full_run_research_paper_20260529_en.md)
-- [한글 번역본](reports/full_run_research_paper_20260529_ko.md)
+- [V2 최종 논문형 종합본](reports/full_run_factor_router_synthesis_v2_final_20260530_ko.md)
 
-이 additive manuscript는 2,082,485-row full-panel 연구를 기존 1.25M date-balanced DDQM2 anchor의 확장판으로 도입한 뒤, full-panel long/short matrix, factor-router frontier, 비용/friction caveat, AI agent 자율 연구 과정을 하나의 report-style paper로 정리한다. 기존 로컬 리포트와 ledger만 사용했으며, 신규 실험, WRDS 로그인, 외부 raw data 사용은 없었다.
+이 단일 V2 문서는 1.25M date-balanced DDQM2 anchor, 2,082,485-row full-panel long/short matrix, factor-router 자율 연구 리포트까지 하나로 통합한 현재 기준 canonical narrative입니다. 기존 V1 초안도 보존합니다: [영문](reports/full_run_research_paper_20260529_en.md), [한글](reports/full_run_research_paper_20260529_ko.md).
 
 최신 factor-router 자율 연구 루프:
 

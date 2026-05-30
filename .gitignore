@@ -27,6 +27,7 @@ reports/*
 !reports/.gitkeep
 !reports/full_run_research_paper_20260529_en.md
 !reports/full_run_research_paper_20260529_ko.md
+!reports/full_run_factor_router_synthesis_v2_final_20260530_ko.md
 site/*
 !site/.gitkeep
 *.xlsx
